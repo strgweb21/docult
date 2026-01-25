@@ -32,6 +32,7 @@ interface ApiResponse {
 
 export default function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [allLabels, setAllLabels] = useState<string[]>([]);
@@ -77,16 +78,22 @@ export default function Home() {
     }
   }, []);
 
+  const fetchAllVideos = useCallback(async () => {
+    const response = await fetch(`/api/videos?limit=10000`);
+    const data: ApiResponse = await response.json();
+    setAllVideos(data.videos); // Semua video untuk label counting
+  }, []);
+
   // Calculate label counts
   const labelCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    videos.forEach(video => {
+    allVideos.forEach(video => {  // ← Menggunakan allVideos, bukan videos
       video.labels.forEach(label => {
         counts.set(label, (counts.get(label) || 0) + 1);
       });
     });
     return counts;
-  }, [videos]);
+  }, [allVideos]);  // ← Re-calculate ketika allVideos berubah
 
   // Extract all unique labels
   useEffect(() => {
@@ -97,10 +104,19 @@ export default function Home() {
     setAllLabels(Array.from(labels).sort());
   }, [videos]);
 
+  useEffect(() => {
+    const labels = new Set<string>();
+    allVideos.forEach(video => {  // ← Menggunakan allVideos
+      video.labels.forEach(label => labels.add(label));
+    });
+    setAllLabels(Array.from(labels).sort());
+  }, [allVideos]);
+
   // Initial load
   useEffect(() => {
-    fetchVideos(currentPage, selectedLabel);
-  }, [fetchVideos]);
+    fetchAllVideos();  // ← Fetch semua video
+    fetchVideos(currentPage, selectedLabel);  // ← Fetch video per halaman
+  }, [fetchAllVideos, fetchVideos]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -311,7 +327,7 @@ export default function Home() {
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all" className="text-white">All Labels ({videos.length})</SelectItem>
+                  <SelectItem value="all" className="text-white">All Labels ({allVideos.length})</SelectItem>
                   {allLabels.map(label => (
                     <SelectItem key={label} value={label} className="text-white">
                       {label} ({labelCounts.get(label) || 0})
