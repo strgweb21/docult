@@ -45,6 +45,7 @@ export default function Home() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
 
   // Form state
@@ -87,13 +88,14 @@ export default function Home() {
   // Calculate label counts
   const labelCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    allVideos.forEach(video => {  // ← Menggunakan allVideos, bukan videos
-      video.labels.forEach(label => {
+    (allVideos || []).forEach(video => {
+      (video.labels || []).forEach(label => {
         counts.set(label, (counts.get(label) || 0) + 1);
       });
     });
     return counts;
-  }, [allVideos]);  // ← Re-calculate ketika allVideos berubah
+  }, [allVideos]);
+  // ← Re-calculate ketika allVideos berubah
 
   // Extract all unique labels
   useEffect(() => {
@@ -337,6 +339,16 @@ export default function Home() {
               </Select>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="search" className="text-white text-gray-300">Search:</Label>
+            <Input
+              id="search"
+              placeholder="Search by title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="text-white bg-black border-gray-700"
+            />
+          </div>
           <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200">
             <Plus className="mr-2 h-4 w-4" />
             Add Video
@@ -354,7 +366,11 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2">
-              {videos.map(video => (
+              {videos
+                .filter(video =>
+                  video.title.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+                .map(video => (
                 <div
                   key={video.id}
                   onClick={() => setSelectedVideo(video)}
