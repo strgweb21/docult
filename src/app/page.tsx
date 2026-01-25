@@ -353,14 +353,14 @@ export default function Home() {
               <p>No videos found. Add your first video to get started!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2">
               {videos.map(video => (
                 <div
                   key={video.id}
                   onClick={() => setSelectedVideo(video)}
                   className="cursor-pointer group"
                 >
-                  {/* Thumbnail */}
+                  {/* Thumbnail dengan label di atas kiri */}
                   <div className="relative aspect-video overflow-hidden bg-gray-900">
                     <img
                       src={video.thumbnailLink}
@@ -369,27 +369,36 @@ export default function Home() {
                       loading="lazy"
                     />
 
+                    {/* Labels di atas kiri */}
+                    <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10">
+                      {video.labels.slice(0, 2).map(label => (
+                        <Badge
+                          key={label}
+                          variant="secondary"
+                          className="text-xs bg-gray-800 text-white px-1 py-0.5 rounded"
+                        >
+                          {label}
+                        </Badge>
+                      ))}
+                      {video.labels.length > 2 && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-gray-800 text-white px-1 py-0.5 rounded"
+                        >
+                          +{video.labels.length - 2}
+                        </Badge>
+                      )}
+                    </div>
+
                     {/* Overlay with play button */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
                       <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
                   </div>
 
-                  {/* Title and labels below thumbnail */}
+                  {/* Title di bawah thumbnail */}
                   <div className="mt-2">
                     <h3 className="text-sm font-semibold text-white line-clamp-2">{video.title}</h3>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {video.labels.slice(0, 2).map(label => (
-                        <Badge key={label} variant="secondary" className="text-xs bg-gray-800 text-white hover:bg-gray-700">
-                          {label}
-                        </Badge>
-                      ))}
-                      {video.labels.length > 2 && (
-                        <Badge variant="secondary" className="text-xs bg-gray-800 text-white hover:bg-gray-700">
-                          +{video.labels.length - 2}
-                        </Badge>
-                      )}
-                    </div>
                   </div>
                 </div>
               ))}
