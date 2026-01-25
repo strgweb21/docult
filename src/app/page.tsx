@@ -43,6 +43,7 @@ export default function Home() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -318,42 +319,102 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-black border-b border-gray-800 px-6 py-4">
+      <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold text-white">Docult</h1>
+          {/* Logo */}
+          <h1 className="text-2xl font-bold text-white">Docult</h1>
+
+          {/* Desktop menu */}
+          <div className="hidden md:flex flex-1 items-center gap-4 justify-between">
+            {/* Search di tengah */}
+            <div className="flex-1 flex justify-center">
+              <Input
+                placeholder="Search by title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-150 bg-black text-white placeholder-gray-400 border-gray-700"
+              />
+            </div>
+
+            {/* Filter + Add di kanan */}
+            <div className="flex items-center gap-4">
+              {/* Filter */}
+              <div className="flex items-center gap-2">
+                <Label htmlFor="labelFilter" className="text-white"></Label>
+                <Select value={selectedLabel} onValueChange={handleLabelFilter}>
+                  <SelectTrigger id="labelFilter" className="w-48 text-white border-gray-700">
+                    <SelectValue placeholder="All Labels" />
+                  </SelectTrigger>
+                  <SelectContent className="text-white bg-black border-gray-700">
+                    <SelectItem value="all">All Labels ({allVideos.length})</SelectItem>
+                    {allLabels.map(label => (
+                      <SelectItem key={label} value={label}>
+                        {label} ({labelCounts.get(label) || 0})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Add Video */}
+              <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
+                <Plus className="h-4 w-4" />
+                Add Video
+              </Button>
+            </div>
+          </div>
+
+          {/* Burger Menu untuk mobile di kanan */}
+          <button
+            className="text-white md:hidden"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isMobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden mt-4 flex flex-col gap-4 bg-black p-4 rounded-lg">
+            {/* Filter */}
             <div className="flex items-center gap-2">
-              <Label htmlFor="labelFilter" className="text-white text-gray-300">Filter:</Label>
+              <Label htmlFor="labelFilterMobile" className="text-white text-gray-300">Filter:</Label>
               <Select value={selectedLabel} onValueChange={handleLabelFilter}>
-                <SelectTrigger id="labelFilter" className="w-48 text-white border-gray-700">
+                <SelectTrigger id="labelFilterMobile" className="w-full text-white border-gray-700">
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all" className="text-white">All Labels ({allVideos.length})</SelectItem>
+                  <SelectItem value="all">All Labels ({allVideos.length})</SelectItem>
                   {allLabels.map(label => (
-                    <SelectItem key={label} value={label} className="text-white">
+                    <SelectItem key={label} value={label}>
                       {label} ({labelCounts.get(label) || 0})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="search" className="text-white text-gray-300">Search:</Label>
+
+            {/* Search */}
             <Input
-              id="search"
               placeholder="Search by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-white bg-black border-gray-700"
+              className="w-full bg-black text-white placeholder-gray-400 border-gray-700"
             />
+
+            {/* Add Video */}
+            <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
+              <Plus className="h-4 w-4" />
+              Add Video
+            </Button>
           </div>
-          <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Video
-          </Button>
-        </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -365,7 +426,7 @@ export default function Home() {
               <p>No videos found. Add your first video to get started!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2">
               {videos
                 .filter(video =>
                   video.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -633,10 +694,10 @@ export default function Home() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={() => setIsAddDialogOpen(false)}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={handleAddVideo} disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={handleAddVideo} disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}>
                 Add Video
               </Button>
             </div>
@@ -716,10 +777,10 @@ export default function Home() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={() => setIsEditDialogOpen(false)}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={handleEditVideo} disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={handleEditVideo} disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}>
                 Save Changes
               </Button>
             </div>
@@ -735,10 +796,10 @@ export default function Home() {
           </DialogHeader>
           <p className="text-black">Are you sure you want to delete this video? This action cannot be undone.</p>
           <div className="flex gap-2 justify-end pt-4">
-            <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" className="bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteVideo}>
+            <Button variant="destructive" className="bg-red-700 text-white hover:bg-red-700" onClick={handleDeleteVideo}>
               Delete
             </Button>
           </div>
@@ -766,10 +827,10 @@ export default function Home() {
               {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={() => setIsPasswordDialogOpen(false)}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsPasswordDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="outline" className="border-gray-600 text-black hover:bg-gray-200" onClick={verifyPassword}>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={verifyPassword}>
                 Confirm
               </Button>
             </div>
