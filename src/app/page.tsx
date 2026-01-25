@@ -401,18 +401,18 @@ export default function Home() {
             <div className="flex items-center justify-center gap-2 mt-8">
               <Button
                 variant="outline"
-                className="border-gray-700 text-white hover:bg-gray-800 hover:text-white"
+                className="border-gray-700 text-black hover:bg-gray-200"
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={!currentPage || currentPage <= 1}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="px-4 py-2 text-gray-300">
+              <span className="px-4 py-2 text-white">
                 Page {currentPage} of {totalPages}
               </span>
               <Button
                 variant="outline"
-                className="border-gray-700 text-white hover:bg-gray-800 hover:text-white"
+                className="border-gray-700 text-black hover:bg-gray-200"
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage >= totalPages}
               >
