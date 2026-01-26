@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   keywords: ["docult", "sex", "porn"],
   authors: [{ name: "pribumi" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/images.png",
+    icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjsxNTAiIHZpZXdCb3g9IjAgMCAxNTAgMTUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxjaXJjbGUgY3g9Ijc1IiBjeT0iNzUiIHI9IjYwIiBmaWxsPSIjMDAwMDAwIi8+PHBhdGggZD0iTTYwIDUwTDEwMCA3NUw2MCAxMDBWNTBaIiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==",
   },
   openGraph: {
     title: "Docult - Chill.....",
