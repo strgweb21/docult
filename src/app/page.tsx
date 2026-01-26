@@ -319,7 +319,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-4">
+      <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
           <h1 className="text-2xl font-bold text-white">Docult</h1>
@@ -328,12 +328,23 @@ export default function Home() {
           <div className="hidden md:flex flex-1 items-center gap-4 justify-between">
             {/* Search di tengah */}
             <div className="flex-1 flex justify-center">
-              <Input
-                placeholder="Search by title..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-150 bg-black text-white placeholder-gray-400 border-gray-700"
-              />
+              <div className="relative w-150">
+                <Input
+                  placeholder="Search by title..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pr-10 bg-black text-white placeholder-gray-400 border-gray-700"
+                />
+
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-200 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filter + Add di kanan */}
@@ -401,12 +412,23 @@ export default function Home() {
             </div>
 
             {/* Search */}
-            <Input
-              placeholder="Search by title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-black text-white placeholder-gray-400 border-gray-700"
-            />
+            <div className="relative">
+              <Input
+                placeholder="Search by title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pr-10 bg-black text-white placeholder-gray-400 border-gray-700"
+              />
+
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
             {/* Add Video */}
             <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
@@ -418,7 +440,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-2">
         <div className="max-w-7xl mx-auto">
           {/* Video Grid */}
           {videos.length === 0 ? (
@@ -426,7 +448,7 @@ export default function Home() {
               <p>No videos found. Add your first video to get started!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-4 gap-2">
               {videos
                 .filter(video =>
                   video.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -438,7 +460,7 @@ export default function Home() {
                   className="cursor-pointer group"
                 >
                   {/* Thumbnail dengan label di atas kiri */}
-                  <div className="relative aspect-video overflow-hidden bg-gray-900">
+                  <div className="relative aspect-video overflow-hidden bg-gray-900 rounded">
                     <img
                       src={video.thumbnailLink}
                       alt={video.title}
@@ -452,7 +474,7 @@ export default function Home() {
                         <Badge
                           key={label}
                           variant="secondary"
-                          className="text-xs bg-gray-800 text-white px-1 py-0.5 rounded"
+                          className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
                         >
                           {label}
                         </Badge>
@@ -460,7 +482,7 @@ export default function Home() {
                       {video.labels.length > 2 && (
                         <Badge
                           variant="secondary"
-                          className="text-xs bg-gray-800 text-white px-1 py-0.5 rounded"
+                          className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
                         >
                           +{video.labels.length - 2}
                         </Badge>
@@ -542,7 +564,7 @@ export default function Home() {
                 <h2 className="text-xl font-bold break-words leading-tight">{selectedVideo.title}</h2>
                 <div className="flex flex-wrap gap-1 mt-2">
                   {selectedVideo.labels.map(label => (
-                    <Badge key={label} variant="secondary" className="bg-gray-800 text-white">
+                    <Badge key={label} variant="secondary" className="bg-transparant border-gray-700 text-white">
                       {label}
                     </Badge>
                   ))}
@@ -551,7 +573,6 @@ export default function Home() {
 
               {/* Width Controls */}
               <div>
-                <p className="text-sm text-gray-400 mb-2">Player Size</p>
                 <div className="flex flex-wrap gap-2">
                   {[500, 820, 960].map(width => (
                     <Button
@@ -562,7 +583,7 @@ export default function Home() {
                         setVideoWidth(width as 500 | 820 | 960);
                       }}
                       size="sm"
-                      className={videoWidth === width ? 'bg-white text-black' : 'bg-transparent text-white border-white hover:bg-white/10'}
+                      className={videoWidth === width ? 'bg-white text-black hover:bg-gray-200' : 'bg-transparent text-white border-gray-700 hover:bg-gray-300'}
                     >
                       {width}px
                     </Button>
@@ -573,7 +594,7 @@ export default function Home() {
               <div className="flex flex-col gap-2">
                 <Button
                   variant="outline"
-                  className="bg-transparent text-white border-white hover:bg-white/10"
+                  className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
                   onClick={(e) => {
                     e.stopPropagation();
                     openEditDialog(selectedVideo);
@@ -583,7 +604,7 @@ export default function Home() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="bg-transparent text-white border-white hover:bg-white/10"
+                  className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedVideo(selectedVideo);
@@ -595,27 +616,15 @@ export default function Home() {
                 {selectedVideo.downloadLink && (
                   <Button
                     variant="outline"
-                    className="bg-transparent text-white border-white hover:bg-white/10"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.open(selectedVideo.downloadLink, '_blank');
                     }}
                   >
-                    <Download className="mr-2 h-4 w-4" />
                     Download
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  className="bg-transparent text-white border-white hover:bg-white/10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(selectedVideo.embedLink, '_blank');
-                  }}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Original
-                </Button>
               </div>
             </div>
           </div>
@@ -763,12 +772,12 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.labels.map(label => (
-                  <Badge key={label} variant="secondary" className="bg-gray-800 text-white">
+                  <Badge key={label} variant="secondary" className="bg-black text-white border-">
                     {label}
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
-                      className="ml-1 hover:text-red-500"
+                      className="ml-1 hover:text-red-700"
                     >
                       <X className="h-3 w-3" />
                     </button>
