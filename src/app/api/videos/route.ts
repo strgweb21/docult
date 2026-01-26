@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD!;
+const ADMIN_PASSWORD = 'jakakarsa0';
 
 async function verifyPassword(request: NextRequest): Promise<boolean> {
   const password = request.headers.get('authorization');
