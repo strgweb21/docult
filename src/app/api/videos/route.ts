@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const ADMIN_PASSWORD = '.';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 async function verifyPassword(request: NextRequest): Promise<boolean> {
   const password = request.headers.get('authorization');
+
+  if (!ADMIN_PASSWORD) return false;
+
   return password === ADMIN_PASSWORD;
 }
 
@@ -12,15 +15,17 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = 10000; // 6 columns x 5 rows = 30 per page
+    const limit = 10000;
     const label = searchParams.get('label');
     const skip = (page - 1) * limit;
 
-    const where = label ? {
-      labels: {
-        contains: label
-      }
-    } : {};
+    const where = label
+      ? {
+          labels: {
+            contains: label,
+          },
+        }
+      : {};
 
     const [videos, total] = await Promise.all([
       db.video.findMany({
@@ -59,10 +64,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!(await verifyPassword(request))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
