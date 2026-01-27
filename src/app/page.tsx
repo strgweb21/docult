@@ -44,6 +44,7 @@ export default function Home() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,6 +121,17 @@ export default function Home() {
     fetchAllVideos();  // ← Fetch semua video
     fetchVideos(currentPage, selectedLabel);  // ← Fetch video per halaman
   }, [fetchAllVideos, fetchVideos]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -536,13 +548,15 @@ export default function Home() {
         <div
           ref={overlayRef}
           onClick={handleOverlayClick}
-          className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-8"
+          className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-2"
         >
           <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 max-w-full">
             {/* Video Player */}
             <div
-              className="relative bg-black"
-              style={{ width: `${videoWidth}px` }}
+              className="relative bg-black w-full max-w-full"
+              style={{
+                width: isMobile ? '100vw' : `${videoWidth}px`,
+              }}
             >
               <div
                 className="relative w-full"
