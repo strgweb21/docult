@@ -46,6 +46,7 @@ export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [password, setPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
@@ -71,7 +72,11 @@ export default function Home() {
         ...(label !== 'all' && { label }),
       });
       const response = await fetch(`/api/videos?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch videos');
+      if (!response.ok) {
+        const t = await response.text();
+        console.error(t);
+        throw new Error('Failed to fetch videos');
+      }
       const data: ApiResponse = await response.json();
       setVideos(data.videos);
       setCurrentPage(data.pagination.page);
@@ -82,9 +87,17 @@ export default function Home() {
   }, []);
 
   const fetchAllVideos = useCallback(async () => {
-    const response = await fetch(`/api/videos?limit=10000`);
-    const data: ApiResponse = await response.json();
-    setAllVideos(data.videos); // Semua video untuk label counting
+    try {
+      const response = await fetch(`/api/videos?limit=10000`);
+
+      if (!response.ok) throw new Error("Fetch all videos failed");
+
+      const data: ApiResponse = await response.json();
+      setAllVideos(data.videos || []);
+    } catch (err) {
+      console.error(err);
+      setAllVideos([]);
+    }
   }, []);
 
   // Calculate label counts
@@ -118,8 +131,14 @@ export default function Home() {
 
   // Initial load
   useEffect(() => {
-    fetchAllVideos();  // ← Fetch semua video
-    fetchVideos(currentPage, selectedLabel);  // ← Fetch video per halaman
+    fetchAllVideos();
+    fetchVideos(currentPage, selectedLabel);
+
+    const savedPass = sessionStorage.getItem("admin_pass");
+    if (savedPass) {
+      setIsAuthenticated(true);
+    }
+
   }, [fetchAllVideos, fetchVideos]);
 
   useEffect(() => {
@@ -147,6 +166,60 @@ export default function Home() {
     fetchVideos(1, label);
   };
 
+  const executeAction = async (
+    type: 'add' | 'edit' | 'delete',
+    storedPassword: string
+  ) => {
+
+    if (type === 'add') {
+      const addResponse = await fetch('/api/videos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: storedPassword,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!addResponse.ok) throw new Error("Add failed");
+
+      setIsAddDialogOpen(false);
+      fetchVideos(currentPage, selectedLabel);
+    }
+
+    if (type === 'edit' && selectedVideo) {
+      const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: storedPassword,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!editResponse.ok) throw new Error("Edit failed");
+
+      setIsEditDialogOpen(false);
+      setSelectedVideo(null);
+      fetchVideos(currentPage, selectedLabel);
+    }
+
+    if (type === 'delete' && selectedVideo) {
+      const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
+        method: 'DELETE',
+        headers: {
+          authorization: storedPassword,
+        },
+      });
+
+      if (!deleteResponse.ok) throw new Error("Delete failed");
+
+      setIsDeleteDialogOpen(false);
+      setSelectedVideo(null);
+      fetchVideos(currentPage, selectedLabel);
+    }
+  };
+
   // Verify password and execute action
   const verifyPassword = async () => {
     try {
@@ -163,82 +236,19 @@ export default function Home() {
         return;
       }
 
-      // Store password before clearing state
-      const storedPassword = password;
-
       setPasswordError('');
       setIsPasswordDialogOpen(false);
-      setPassword('');
 
-      // Execute the pending action based on actionType
-      if (actionType === 'add') {
-        try {
-          const addResponse = await fetch('/api/videos', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'authorization': storedPassword,
-            },
-            body: JSON.stringify(formData),
-          });
+      setIsAuthenticated(true);
+      sessionStorage.setItem("admin_pass", password);
 
-          if (!addResponse.ok) {
-            const errorData = await addResponse.json();
-            throw new Error(errorData.error || 'Failed to add video');
-          }
-
-          setIsAddDialogOpen(false);
-          fetchVideos(currentPage, selectedLabel);
-        } catch (error) {
-          console.error('Error adding video:', error);
-        }
-      } else if (actionType === 'edit' && selectedVideo) {
-        try {
-          const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'authorization': storedPassword,
-            },
-            body: JSON.stringify(formData),
-          });
-
-          if (!editResponse.ok) {
-            const errorData = await editResponse.json();
-            throw new Error(errorData.error || 'Failed to update video');
-          }
-
-          setIsEditDialogOpen(false);
-          setSelectedVideo(null);
-          fetchVideos(currentPage, selectedLabel);
-        } catch (error) {
-          console.error('Error updating video:', error);
-        }
-      } else if (actionType === 'delete' && selectedVideo) {
-        try {
-          const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-            method: 'DELETE',
-            headers: {
-              'authorization': storedPassword,
-            },
-          });
-
-          if (!deleteResponse.ok) {
-            const errorData = await deleteResponse.json();
-            throw new Error(errorData.error || 'Failed to delete video');
-          }
-
-          setIsDeleteDialogOpen(false);
-          setSelectedVideo(null);
-          fetchVideos(currentPage, selectedLabel);
-        } catch (error) {
-          console.error('Error deleting video:', error);
-        }
+      if (actionType) {
+        await executeAction(actionType, password);
       }
 
-      setActionType(null);
-    } catch (error) {
-      console.error('Password verification failed:', error);
+      setPassword('');
+    } catch (err) {
+      console.error(err);
       setPasswordError('Invalid password');
     }
   };
@@ -291,8 +301,14 @@ export default function Home() {
 
   // Handle add video
   const handleAddVideo = () => {
-    setActionType('add');
-    setIsPasswordDialogOpen(true);
+    const saved = sessionStorage.getItem("admin_pass");
+
+    if (saved) {
+      executeAction('add', saved);
+    } else {
+      setActionType('add');
+      setIsPasswordDialogOpen(true);
+    }
   };
 
   // Open edit dialog
@@ -312,15 +328,29 @@ export default function Home() {
   // Handle edit video
   const handleEditVideo = () => {
     if (!selectedVideo) return;
-    setActionType('edit');
-    setIsPasswordDialogOpen(true);
+
+    const saved = sessionStorage.getItem("admin_pass");
+
+    if (saved) {
+      executeAction('edit', saved);
+    } else {
+      setActionType('edit');
+      setIsPasswordDialogOpen(true);
+    }
   };
 
   // Handle delete video
   const handleDeleteVideo = () => {
     if (!selectedVideo) return;
-    setActionType('delete');
-    setIsPasswordDialogOpen(true);
+
+    const saved = sessionStorage.getItem("admin_pass");
+
+    if (saved) {
+      executeAction('delete', saved);
+    } else {
+      setActionType('delete');
+      setIsPasswordDialogOpen(true);
+    }
   };
 
   // Handle keyboard events
@@ -383,8 +413,8 @@ export default function Home() {
                     <SelectValue placeholder="All Labels" />
                   </SelectTrigger>
                   <SelectContent className="text-white bg-black border-gray-700">
-                    <SelectItem value="all">All Labels ({allVideos.length})</SelectItem>
-                    {allLabels.map(label => (
+                    <SelectItem value="all">All Labels ({allVideos?.length || 0})</SelectItem>
+                    {(allLabels || []).map(label => (
                       <SelectItem key={label} value={label}>
                         {label} ({labelCounts.get(label) || 0})
                       </SelectItem>
