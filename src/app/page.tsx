@@ -50,6 +50,10 @@ export default function Home() {
   const [passwordError, setPasswordError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    type: 'add' | 'edit' | 'delete';
+    data?: Video | null;
+  } | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -130,15 +134,41 @@ export default function Home() {
   }, [allVideos]);
 
   // Initial load
+  // Di useEffect initial load:
   useEffect(() => {
     fetchAllVideos();
     fetchVideos(currentPage, selectedLabel);
 
+    // Cek apakah sudah login sebelumnya
     const savedPass = sessionStorage.getItem("admin_pass");
     if (savedPass) {
-      setIsAuthenticated(true);
+      // Verifikasi ulang password
+      const verifyStoredPassword = async () => {
+        try {
+          const response = await fetch('/api/videos/verify-password', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password: savedPass }),
+          });
+          
+          if (response.ok) {
+            setIsAuthenticated(true);
+          } else {
+            // Password tidak valid, hapus dari storage
+            sessionStorage.removeItem("admin_pass");
+            setIsAuthenticated(false);
+          }
+        } catch (error) {
+          console.error('Error verifying stored password:', error);
+          sessionStorage.removeItem("admin_pass");
+          setIsAuthenticated(false);
+        }
+      };
+      
+      verifyStoredPassword();
     }
-
   }, [fetchAllVideos, fetchVideos]);
 
   useEffect(() => {
@@ -151,6 +181,14 @@ export default function Home() {
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Tambahkan handler ketika password dialog ditutup:
+  const handlePasswordDialogClose = () => {
+    setIsPasswordDialogOpen(false);
+    setPassword('');
+    setPasswordError('');
+    setPendingAction(null);
+  };
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -221,6 +259,7 @@ export default function Home() {
   };
 
   // Verify password and execute action
+  // Ubah verifyPassword function:
   const verifyPassword = async () => {
     try {
       const response = await fetch('/api/videos/verify-password', {
@@ -236,14 +275,43 @@ export default function Home() {
         return;
       }
 
+      // Password benar
       setPasswordError('');
       setIsPasswordDialogOpen(false);
-
       setIsAuthenticated(true);
       sessionStorage.setItem("admin_pass", password);
 
-      if (actionType) {
-        await executeAction(actionType, password);
+      // Jalankan action yang tertunda
+      if (pendingAction) {
+        if (pendingAction.type === 'add') {
+          setFormData({
+            title: '',
+            embedLink: '',
+            thumbnailLink: '',
+            downloadLink: '',
+            labels: [],
+            newLabel: '',
+          });
+          setIsAddDialogOpen(true);
+        } 
+        else if (pendingAction.type === 'edit' && pendingAction.data) {
+          setSelectedVideo(pendingAction.data);
+          setFormData({
+            title: pendingAction.data.title,
+            embedLink: pendingAction.data.embedLink,
+            thumbnailLink: pendingAction.data.thumbnailLink,
+            downloadLink: pendingAction.data.downloadLink,
+            labels: [...pendingAction.data.labels],
+            newLabel: '',
+          });
+          setIsEditDialogOpen(true);
+        }
+        else if (pendingAction.type === 'delete' && pendingAction.data) {
+          setSelectedVideo(pendingAction.data);
+          setIsDeleteDialogOpen(true);
+        }
+        
+        setPendingAction(null);
       }
 
       setPassword('');
@@ -288,6 +356,12 @@ export default function Home() {
 
   // Open add dialog
   const openAddDialog = () => {
+    if (!isAuthenticated) {
+      setPendingAction({ type: 'add' });
+      setIsPasswordDialogOpen(true);
+      return;
+    }
+    
     setFormData({
       title: '',
       embedLink: '',
@@ -655,9 +729,17 @@ export default function Home() {
                   variant="outline"
                   className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
                   onClick={(e) => {
-                    e.stopPropagation();
-                    openEditDialog(selectedVideo);
-                  }}
+                  e.stopPropagation();
+                  
+                  if (!isAuthenticated) {
+                    setSelectedVideo(selectedVideo);
+                    setPendingAction({ type: 'edit', data: selectedVideo });
+                    setIsPasswordDialogOpen(true);
+                    return;
+                  }
+                  
+                  openEditDialog(selectedVideo);
+                }}
                 >
                   Edit
                 </Button>
@@ -666,6 +748,14 @@ export default function Home() {
                   className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
                   onClick={(e) => {
                     e.stopPropagation();
+                    
+                    if (!isAuthenticated) {
+                      setSelectedVideo(selectedVideo);
+                      setPendingAction({ type: 'delete', data: selectedVideo });
+                      setIsPasswordDialogOpen(true);
+                      return;
+                    }
+                    
                     setSelectedVideo(selectedVideo);
                     setIsDeleteDialogOpen(true);
                   }}
@@ -899,14 +989,13 @@ export default function Home() {
       </Dialog>
 
       {/* Password Dialog */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+      <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
         <DialogContent zIndex={200}>
           <DialogHeader>
-            <DialogTitle>Enter Password</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Enter Admin Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -919,11 +1008,19 @@ export default function Home() {
               {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsPasswordDialogOpen(false)}>
+              <Button 
+                variant="outline" 
+                className="border-gray-700 text-black hover:bg-gray-200" 
+                onClick={handlePasswordDialogClose}
+              >
                 Cancel
               </Button>
-              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={verifyPassword}>
-                Confirm
+              <Button 
+                variant="outline" 
+                className="border-gray-700 text-black hover:bg-gray-200" 
+                onClick={verifyPassword}
+              >
+                Authenticate
               </Button>
             </div>
           </div>
