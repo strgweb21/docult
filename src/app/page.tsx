@@ -37,6 +37,8 @@ export default function Home() {
   const [totalPages, setTotalPages] = useState(1);
   const [allLabels, setAllLabels] = useState<string[]>([]);
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
+  const [hasMore, setHasMore] = useState(true);
+  const loaderRef = useRef<HTMLDivElement>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -73,9 +75,12 @@ export default function Home() {
       const response = await fetch(`/api/videos?${params}`);
       if (!response.ok) throw new Error('Failed to fetch videos');
       const data: ApiResponse = await response.json();
-      setVideos(data.videos);
+      setVideos(prev =>
+        page === 1 ? data.videos : [...prev, ...data.videos]
+      );
       setCurrentPage(data.pagination.page);
       setTotalPages(data.pagination.totalPages);
+      setHasMore(data.pagination.hasNextPage);
     } catch (error) {
       console.error('Error fetching videos:', error);
     }
@@ -132,6 +137,20 @@ export default function Home() {
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (!loaderRef.current || !hasMore) return;
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        fetchVideos(currentPage + 1, selectedLabel);
+      }
+    });
+
+    observer.observe(loaderRef.current);
+
+    return () => observer.disconnect();
+  }, [currentPage, hasMore, selectedLabel]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -492,6 +511,7 @@ export default function Home() {
                       alt={video.title}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
+                      decoding="async"
                     />
 
                     {/* Labels di atas kiri */}
@@ -530,30 +550,11 @@ export default function Home() {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={!currentPage || currentPage <= 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="px-4 py-2 text-white">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+          <div ref={loaderRef} className="h-10" />
+          {hasMore && (
+            <p className="text-center text-gray-500 mt-4">Loading more...</p>
           )}
+          
         </div>
       </main>
 
