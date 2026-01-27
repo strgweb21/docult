@@ -245,13 +245,27 @@ export default function Home() {
 
   // Add label
   const handleAddLabel = () => {
-    if (formData.newLabel.trim() && !formData.labels.includes(formData.newLabel.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        labels: [...prev.labels, prev.newLabel.trim()],
-        newLabel: '',
-      }));
-    }
+    if (!formData.newLabel.trim()) return;
+
+    const newLabels = formData.newLabel
+      .split(/,|\n/)           // pisah pakai koma atau enter
+      .map(l => l.trim())
+      .filter(l => l.length);
+
+    setFormData(prev => ({
+      ...prev,
+      labels: Array.from(new Set([...prev.labels, ...newLabels])), // anti duplicate
+      newLabel: '',
+    }));
+  };
+
+  const addExistingLabel = (label: string) => {
+    setFormData(prev => ({
+      ...prev,
+      labels: prev.labels.includes(label)
+        ? prev.labels
+        : [...prev.labels, label],
+    }));
   };
 
   // Remove label
@@ -703,7 +717,7 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.labels.map(label => (
-                  <Badge key={label} variant="secondary" className="bg-gray-800 text-white">
+                  <Badge key={label} variant="secondary" className="bg-black text-white">
                     {label}
                     <button
                       type="button"
@@ -714,6 +728,30 @@ export default function Home() {
                     </button>
                   </Badge>
                 ))}
+              </div>
+              <div className="mt-4">
+                <p className="text-sm text-black mb-2">Existing labels:</p>
+
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                  {allLabels.map(label => {
+                    const selected = formData.labels.includes(label);
+
+                    return (
+                      <Badge
+                        key={label}
+                        onClick={() => addExistingLabel(label)}
+                        className={`cursor-pointer select-none transition
+                          ${
+                            selected
+                              ? 'bg-white text-black'
+                              : 'bg-black text-white hover:bg-gray-700'
+                          }`}
+                      >
+                        {label}
+                      </Badge>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-4">
