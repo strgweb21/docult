@@ -47,6 +47,8 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true); // apakah masih ada video untuk load
   const [passwordError, setPasswordError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
@@ -69,26 +71,60 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch videos
-  const fetchVideos = useCallback(async (page: number = 1, label: string = 'all') => {
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        ...(label !== 'all' && { label }),
-      });
-      const response = await fetch(`/api/videos?${params}`);
-      if (!response.ok) {
-        const t = await response.text();
-        console.error(t);
-        throw new Error('Failed to fetch videos');
+  const fetchVideos = useCallback(
+    async (page: number = 1, label: string = 'all', append: boolean = false) => {
+      if (!hasMore && append) return; // kalau sudah habis, skip
+
+      try {
+        setIsLoadingMore(true);
+
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: '20',
+          ...(label !== 'all' && { label }),
+        });
+
+        const response = await fetch(`/api/videos?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch videos');
+
+        const data = await response.json();
+        const fetchedVideos: Video[] = data.videos;
+
+        // append atau replace
+        setVideos(prev => (append ? [...prev, ...fetchedVideos] : fetchedVideos));
+        setCurrentPage(page);
+        setHasMore(data.pagination.hasNextPage);
+
+        // sync all labels
+        setAllLabels(data.allLabels || []);
+
+        setIsLoadingMore(false);
+      } catch (error) {
+        console.error('Error fetching videos:', error);
+        setIsLoadingMore(false);
       }
-      const data: ApiResponse = await response.json();
-      setVideos(data.videos);
-      setCurrentPage(data.pagination.page);
-      setTotalPages(data.pagination.totalPages);
-    } catch (error) {
-      console.error('Error fetching videos:', error);
-    }
-  }, []);
+    },
+    [hasMore]
+  );
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
+          fetchVideos(currentPage + 1, selectedLabel, true);
+        }
+      },
+      { rootMargin: '200px' } // trigger sebelum footer terlihat
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
 
   const fetchAllVideos = useCallback(async () => {
     try {
@@ -107,27 +143,19 @@ export default function Home() {
   // Calculate label counts
   const labelCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    (allVideos || []).forEach(video => {
-      (video.labels || []).forEach(label => {
+    allVideos.forEach(video => {
+      video.labels.forEach(label => {
         counts.set(label, (counts.get(label) || 0) + 1);
       });
     });
     return counts;
   }, [allVideos]);
+
   // ← Re-calculate ketika allVideos berubah
 
-  // Extract all unique labels
   useEffect(() => {
     const labels = new Set<string>();
-    videos.forEach(video => {
-      video.labels.forEach(label => labels.add(label));
-    });
-    setAllLabels(Array.from(labels).sort());
-  }, [videos]);
-
-  useEffect(() => {
-    const labels = new Set<string>();
-    allVideos.forEach(video => {  // ← Menggunakan allVideos
+    allVideos.forEach(video => {
       video.labels.forEach(label => labels.add(label));
     });
     setAllLabels(Array.from(labels).sort());
@@ -201,7 +229,8 @@ export default function Home() {
   const handleLabelFilter = (label: string) => {
     setSelectedLabel(label);
     setCurrentPage(1);
-    fetchVideos(1, label);
+    setHasMore(true);
+    fetchVideos(1, label, false);
   };
 
   const executeAction = async (
@@ -222,7 +251,10 @@ export default function Home() {
       if (!addResponse.ok) throw new Error("Add failed");
 
       setIsAddDialogOpen(false);
-      fetchVideos(currentPage, selectedLabel);
+
+      // Refresh semua video dan labels
+      await fetchAllVideos(); // untuk update allLabels
+      fetchVideos(1, 'all', false);
     }
 
     if (type === 'edit' && selectedVideo) {
@@ -239,6 +271,9 @@ export default function Home() {
 
       setIsEditDialogOpen(false);
       setSelectedVideo(null);
+
+      // Refresh allVideos dan fetch videos
+      await fetchAllVideos();
       fetchVideos(currentPage, selectedLabel);
     }
 
@@ -254,6 +289,9 @@ export default function Home() {
 
       setIsDeleteDialogOpen(false);
       setSelectedVideo(null);
+
+      // Refresh allVideos dan fetch videos
+      await fetchAllVideos();
       fetchVideos(currentPage, selectedLabel);
     }
   };
@@ -483,18 +521,18 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <Label htmlFor="labelFilter" className="text-white"></Label>
                 <Select value={selectedLabel} onValueChange={handleLabelFilter}>
-                  <SelectTrigger id="labelFilter" className="w-48 text-white border-gray-700">
-                    <SelectValue placeholder="All Labels" />
-                  </SelectTrigger>
-                  <SelectContent className="text-white bg-black border-gray-700">
-                    <SelectItem value="all">All Labels ({allVideos?.length || 0})</SelectItem>
-                    {(allLabels || []).map(label => (
-                      <SelectItem key={label} value={label}>
-                        {label} ({labelCounts.get(label) || 0})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectTrigger id="labelFilter" className="w-48 text-white border-gray-700">
+                  <SelectValue placeholder="All Labels" />
+                </SelectTrigger>
+                <SelectContent className="text-white bg-black border-gray-700">
+                  <SelectItem value="all">All Labels ({allVideos?.length || 0})</SelectItem>
+                  {Array.from(labelCounts.keys()).map(label => (
+                    <SelectItem key={label} value={label}>
+                      {label} ({labelCounts.get(label)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               </div>
 
               {/* Add Video */}
@@ -575,7 +613,7 @@ export default function Home() {
           {/* Video Grid */}
           {videos.length === 0 ? (
             <div className="flex items-center justify-center h-96 text-gray-400">
-              <p>No videos found. Add your first video to get started!</p>
+              <p>No videos found.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-4 gap-2">
@@ -584,79 +622,64 @@ export default function Home() {
                   video.title.toLowerCase().includes(searchQuery.toLowerCase())
                 )
                 .map(video => (
-                <div
-                  key={video.id}
-                  onClick={() => setSelectedVideo(video)}
-                  className="cursor-pointer group"
-                >
-                  {/* Thumbnail dengan label di atas kiri */}
-                  <div className="relative aspect-video overflow-hidden bg-gray-900 rounded">
-                    <img
-                      src={video.thumbnailLink}
-                      alt={video.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                      decoding="async"
-                    />
+                  <div
+                    key={video.id}
+                    onClick={() => setSelectedVideo(video)}
+                    className="cursor-pointer group"
+                  >
+                    {/* Thumbnail dengan label di atas kiri */}
+                    <div className="relative aspect-video overflow-hidden bg-gray-900 rounded">
+                      <img
+                        src={video.thumbnailLink}
+                        alt={video.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
+                      />
 
-                    {/* Labels di atas kiri */}
-                    <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10">
-                      {video.labels.slice(0, 2).map(label => (
-                        <Badge
-                          key={label}
-                          variant="secondary"
-                          className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
-                        >
-                          {label}
-                        </Badge>
-                      ))}
-                      {video.labels.length > 2 && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
-                        >
-                          +{video.labels.length - 2}
-                        </Badge>
-                      )}
+                      {/* Labels di atas kiri */}
+                      <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10">
+                        {video.labels.slice(0, 2).map(label => (
+                          <Badge
+                            key={label}
+                            variant="secondary"
+                            className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
+                          >
+                            {label}
+                          </Badge>
+                        ))}
+                        {video.labels.length > 2 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
+                          >
+                            +{video.labels.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Overlay with play button */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
+                        <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
                     </div>
 
-                    {/* Overlay with play button */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
-                      <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    {/* Title di bawah thumbnail */}
+                    <div className="mt-2">
+                      <h3 className="text-sm font-semibold text-white line-clamp-2">{video.title}</h3>
                     </div>
                   </div>
+                ))}
 
-                  {/* Title di bawah thumbnail */}
-                  <div className="mt-2">
-                    <h3 className="text-sm font-semibold text-white line-clamp-2">{video.title}</h3>
-                  </div>
-                </div>
-              ))}
+              {/* Load More Trigger untuk Infinite Scroll */}
+              <div ref={loadMoreRef} className="col-span-full h-4"></div>
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={!currentPage || currentPage <= 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="px-4 py-2 text-white">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          /* Loading Indicator */
+          {isLoadingMore && (
+            <div className="flex justify-center mt-4">
+              <p className="text-gray-400">Loading...</p>
             </div>
           )}
         </div>
@@ -879,11 +902,7 @@ export default function Home() {
                         key={label}
                         onClick={() => addExistingLabel(label)}
                         className={`cursor-pointer select-none transition
-                          ${
-                            selected
-                              ? 'bg-white text-black'
-                              : 'bg-black text-white hover:bg-gray-700'
-                          }`}
+                          ${selected ? 'bg-white text-black' : 'bg-black text-white hover:bg-gray-700'}`}
                       >
                         {label}
                       </Badge>
@@ -947,6 +966,8 @@ export default function Home() {
                 placeholder="https://example.com/download/video.mp4"
               />
             </div>
+
+            {/* Labels Input */}
             <div>
               <Label>Labels</Label>
               <div className="flex gap-2 mt-2">
@@ -960,9 +981,11 @@ export default function Home() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
+
+              {/* Labels yang sudah dipilih */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.labels.map(label => (
-                  <Badge key={label} variant="secondary" className="bg-black text-white border-">
+                  <Badge key={label} variant="secondary" className="bg-black text-white">
                     {label}
                     <button
                       type="button"
@@ -974,7 +997,29 @@ export default function Home() {
                   </Badge>
                 ))}
               </div>
+
+              {/* Existing Labels */}
+              <div className="mt-4">
+                <p className="text-sm text-black mb-2">Existing labels:</p>
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                  {allLabels.map(label => {
+                    const selected = formData.labels.includes(label);
+                    return (
+                      <Badge
+                        key={label}
+                        onClick={() => addExistingLabel(label)}
+                        className={`cursor-pointer select-none transition
+                          ${selected ? 'bg-white text-black' : 'bg-black text-white hover:bg-gray-700'}`}
+                      >
+                        {label}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+
+            {/* Buttons */}
             <div className="flex gap-2 justify-end pt-4">
               <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
@@ -1009,11 +1054,11 @@ export default function Home() {
       <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
         <DialogContent zIndex={200}>
           <DialogHeader>
-            <DialogTitle>Admin Authentication Required</DialogTitle>
+            <DialogTitle>Enter Admin Password</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="password">Enter Admin Password</Label>
+              <Label htmlFor="password"></Label>
               <Input
                 id="password"
                 type="password"
