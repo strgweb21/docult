@@ -681,13 +681,30 @@ export default function Home() {
                 className="relative w-full"
                 style={{ paddingTop: `${100 / (16 / 9)}%` }}
               >
-                <iframe
-                  src={selectedVideo.embedLink}
-                  title={selectedVideo.title}
-                  className="absolute inset-0 w-full h-full"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                />
+                {selectedVideo.embedLink.endsWith('.mp4') ? (
+                  <video
+                    src={selectedVideo.embedLink}
+                    controls
+                    autoPlay
+                    className="absolute inset-0 w-full h-full"
+                  />
+                ) : selectedVideo.embedLink.endsWith('.m3u8') ? (
+                  <iframe
+                    src={selectedVideo.embedLink}
+                    title={selectedVideo.title}
+                    className="absolute inset-0 w-full h-full"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                ) : (
+                  <iframe
+                    src={selectedVideo.embedLink}
+                    title={selectedVideo.title}
+                    className="absolute inset-0 w-full h-full"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                )}
               </div>
             </div>
 
@@ -992,6 +1009,7 @@ export default function Home() {
       <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
         <DialogContent zIndex={200}>
           <DialogHeader>
+            <DialogTitle>Admin Authentication Required</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
