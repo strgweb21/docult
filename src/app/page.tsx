@@ -128,7 +128,7 @@ export default function Home() {
 
   const fetchAllVideos = useCallback(async () => {
     try {
-      const response = await fetch(`/api/videos?limit=10000`);
+      const response = await fetch(`/api/videos?limit=1000`);
 
       if (!response.ok) throw new Error("Fetch all videos failed");
 
@@ -490,7 +490,9 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <h1 className="text-2xl font-bold text-white">Docult</h1>
+          <a href="" rel="noopener noreferrer">
+            <h1 className="text-2xl font-bold text-white">Docult</h1>
+          </a>
 
           {/* Desktop menu */}
           <div className="hidden md:flex flex-1 items-center gap-4 justify-between">
@@ -744,9 +746,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Width Controls */}
-              <div>
-                <div className="flex flex-wrap gap-2">
+              {/* Width Controls + Close */}
+              <div className="flex justify-center mt-4">
+                <div className="flex flex-wrap gap-2 items-center">
                   {[500, 820, 960].map(width => (
                     <Button
                       key={width}
@@ -756,11 +758,25 @@ export default function Home() {
                         setVideoWidth(width as 500 | 820 | 960);
                       }}
                       size="sm"
-                      className={videoWidth === width ? 'bg-white text-black hover:bg-gray-200' : 'bg-transparent text-white border-gray-700 hover:bg-gray-300'}
+                      className={
+                        videoWidth === width
+                          ? 'bg-white text-black hover:bg-gray-200'
+                          : 'bg-transparent text-white border-gray-700 hover:bg-gray-300'
+                      }
                     >
                       {width}px
                     </Button>
                   ))}
+
+                  {/* Tombol Close */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                    onClick={() => setSelectedVideo(null)}
+                  >
+                    Close
+                  </Button>
                 </div>
               </div>
 
@@ -1054,7 +1070,7 @@ export default function Home() {
       <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
         <DialogContent zIndex={200}>
           <DialogHeader>
-            <DialogTitle>Enter Admin Password</DialogTitle>
+            <DialogTitle>Enter Password</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -1066,7 +1082,7 @@ export default function Home() {
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
                 ref={inputRef}
-                placeholder="Enter admin password"
+                placeholder="Password....."
               />
               {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
             </div>
