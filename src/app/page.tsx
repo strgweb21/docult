@@ -504,7 +504,7 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <a href="https://docult.vercel.app/" rel="noopener noreferrer">
+          <a href="/" rel="noopener noreferrer">
             <h1 className="text-2xl font-bold text-white">Docult</h1>
           </a>
 
@@ -512,7 +512,7 @@ export default function Home() {
           <div className="hidden md:flex flex-1 items-center gap-4 justify-between">
             {/* Search di tengah */}
             <div className="flex-1 flex justify-center">
-              <div className="relative flex w-full max-w-xlrelative flex w-full max-w-2xl">
+              <div className="relative flex w-full max-w-2xl">
 
                 {/* INPUT */}
                 <div className="relative flex-1">
@@ -721,7 +721,7 @@ export default function Home() {
             </div>
           )}
 
-          /* Loading Indicator */
+          {/* Loading Indicator */}
           {isLoadingMore && (
             <div className="flex justify-center mt-4">
               <p className="text-gray-400">Loading...</p>
