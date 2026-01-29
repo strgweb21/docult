@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -506,7 +504,7 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <a href="/" rel="noopener noreferrer">
+          <a href="https://docult.vercel.app/" rel="noopener noreferrer">
             <h1 className="text-2xl font-bold text-white">Docult</h1>
           </a>
 
