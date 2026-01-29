@@ -1,6 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
