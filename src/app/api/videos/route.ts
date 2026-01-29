@@ -17,13 +17,23 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20'); // default load 20 per request
     const label = searchParams.get('label');
+    const s = searchParams.get('s');
     const skip = (page - 1) * limit;
 
-    const where = label
-      ? {
-          labels: { contains: label },
-        }
-      : {};
+    const where: any = {};
+
+    if (label) {
+      where.labels = {
+        contains: label,
+      };
+    }
+
+    if (s) {
+      where.title = {
+        contains: s,
+        mode: 'insensitive',
+      };
+    }
 
     const [videos, total, allVideos] = await Promise.all([
       db.video.findMany({

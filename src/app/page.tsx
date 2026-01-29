@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus, Download, ExternalLink, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
   id: string;
@@ -50,7 +51,10 @@ export default function Home() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true); // apakah masih ada video untuk load
   const [passwordError, setPasswordError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchFromUrl = searchParams.get('s') || '';
+  const [searchInput, setSearchInput] = useState(searchFromUrl);
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'delete';
@@ -82,7 +86,9 @@ export default function Home() {
           page: page.toString(),
           limit: '20',
           ...(label !== 'all' && { label }),
+          ...(searchFromUrl && { s: searchFromUrl }),
         });
+
 
         const response = await fetch(`/api/videos?${params}`);
         if (!response.ok) throw new Error('Failed to fetch videos');
@@ -104,8 +110,16 @@ export default function Home() {
         setIsLoadingMore(false);
       }
     },
-    [hasMore]
+    [hasMore, searchFromUrl]
   );
+
+  useEffect(() => {
+    fetchVideos(1, selectedLabel);
+  }, [searchFromUrl]);
+
+  useEffect(() => {
+    setSearchInput(searchFromUrl);
+  }, [searchFromUrl]);
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -490,7 +504,7 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-black border-b border-gray-700 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <a href="" rel="noopener noreferrer">
+          <a href="/" rel="noopener noreferrer">
             <h1 className="text-2xl font-bold text-white">Docult</h1>
           </a>
 
@@ -498,22 +512,41 @@ export default function Home() {
           <div className="hidden md:flex flex-1 items-center gap-4 justify-between">
             {/* Search di tengah */}
             <div className="flex-1 flex justify-center">
-              <div className="relative w-150">
-                <Input
-                  placeholder="Search by title..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pr-10 bg-black text-white placeholder-gray-400 border-gray-700"
-                />
+              <div className="relative flex w-full max-w-xlrelative flex w-full max-w-2xl">
 
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-200 hover:text-white"
-                  >
-                    ✕
-                  </button>
-                )}
+                {/* INPUT */}
+                <div className="relative flex-1">
+                  <Input
+                    placeholder="Search by title..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        router.push(
+                          searchInput
+                            ? `/?s=${encodeURIComponent(searchInput)}`
+                            : `/`
+                        );
+                      }
+                    }}
+                    className="w-full pr-8 bg-black text-white placeholder-gray-400 border-gray-700 rounded-r-none"
+                  />
+                </div>
+
+                {/* SEARCH BUTTON */}
+                <Button
+                  onClick={() =>
+                    router.push(
+                      searchInput
+                        ? `/?s=${encodeURIComponent(searchInput)}`
+                        : `/`
+                    )
+                  }
+                  className="rounded-l-none bg-white text-black hover:bg-gray-200"
+                >
+                  Search
+                </Button>
+
               </div>
             </div>
 
@@ -585,19 +618,32 @@ export default function Home() {
             <div className="relative">
               <Input
                 placeholder="Search by title..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    router.push(
+                      searchInput
+                        ? `/?s=${encodeURIComponent(searchInput)}`
+                        : `/`
+                    );
+                  }
+                }}
                 className="w-full pr-10 bg-black text-white placeholder-gray-400 border-gray-700"
               />
 
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                >
-                  ✕
-                </button>
-              )}
+              <Button
+                onClick={() =>
+                  router.push(
+                    searchInput
+                      ? `/?s=${encodeURIComponent(searchInput)}`
+                      : `/`
+                  )
+                }
+                className="absolute right-0 top-0 h-full rounded-l-none bg-white text-black"
+              >
+                Search
+              </Button>
             </div>
 
             {/* Add Video */}
@@ -618,11 +664,8 @@ export default function Home() {
               <p>No videos found.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2">
               {videos
-                .filter(video =>
-                  video.title.toLowerCase().includes(searchQuery.toLowerCase())
-                )
                 .map(video => (
                   <div
                     key={video.id}
