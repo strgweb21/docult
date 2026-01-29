@@ -31,7 +31,17 @@ interface ApiResponse {
   };
 }
 
-export default function Home() {
+import { Suspense } from "react";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <Home />
+    </Suspense>
+  );
+}
+
+function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [allVideos, setAllVideos] = useState<Video[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
