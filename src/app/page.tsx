@@ -572,9 +572,7 @@ function Home() {
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
                   <SelectItem value="all">All Labels ({allVideos?.length || 0})</SelectItem>
-                  {Array.from(labelCounts.keys())
-                    .sort((a, b) => a.localeCompare(b))
-                    .map(label => (
+                  {Array.from(labelCounts.keys()).map(label => (
                     <SelectItem key={label} value={label}>
                       {label} ({labelCounts.get(label)})
                     </SelectItem>
@@ -618,9 +616,7 @@ function Home() {
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
                   <SelectItem value="all">All Labels ({allVideos.length})</SelectItem>
-                  {[...allLabels]
-                    .sort((a, b) => a.localeCompare(b))
-                    .map(label => (
+                  {allLabels.map(label => (
                     <SelectItem key={label} value={label}>
                       {label} ({labelCounts.get(label) || 0})
                     </SelectItem>
