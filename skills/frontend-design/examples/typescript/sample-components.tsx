@@ -104,12 +104,11 @@ Button.displayName = 'Button';
 // INPUT COMPONENT
 // ============================================
 
-interface InputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> { // Omit size
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   helperText?: string;
-  size?: "sm" | "md" | "lg"; // sekarang aman, nggak bentrok
+  size?: 'sm' | 'md' | 'lg';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
