@@ -15,16 +15,18 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20'); // default load 20 per request
+    const limit = parseInt(searchParams.get('limit') || '20');
     const label = searchParams.get('label');
     const s = searchParams.get('s');
+
     const skip = (page - 1) * limit;
 
     const where: any = {};
 
     if (label) {
+      // masih JSON string → minimal fix
       where.labels = {
-        contains: label,
+        contains: `"${label}"`,
       };
     }
 
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const [videos, total, allVideos] = await Promise.all([
+    const [videos, total] = await Promise.all([
       db.video.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -43,15 +45,7 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       db.video.count({ where }),
-      db.video.findMany({ orderBy: { createdAt: 'desc' }, take: 10000 }),
     ]);
-
-    // extract all labels (synchronize labels walau video belum muncul)
-    const allLabelsSet = new Set<string>();
-    allVideos.forEach(v => {
-      const lbls: string[] = v.labels ? JSON.parse(v.labels) : [];
-      lbls.forEach(l => allLabelsSet.add(l));
-    });
 
     const totalPages = Math.ceil(total / limit);
 
@@ -66,12 +60,15 @@ export async function GET(request: NextRequest) {
         total,
         totalPages,
         hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
-      allLabels: Array.from(allLabelsSet).sort(),
     });
-  } catch (error) {
-    console.error('Error fetching videos:', error);
-    return NextResponse.json({ error: 'Failed to fetch videos' }, { status: 500 });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json(
+      { error: 'Failed to fetch videos' },
+      { status: 500 }
+    );
   }
 }
 

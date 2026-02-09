@@ -44,10 +44,11 @@ export default function Page() {
 
 function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [allVideos, setAllVideos] = useState<Video[]>([]);
+  const [allLabels, setAllLabels] = useState<string[]>([]);
+  const [labelCounts, setLabelCounts] = useState<Map<string, number>>(new Map());
+  const [totalVideos, setTotalVideos] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [allLabels, setAllLabels] = useState<string[]>([]);
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
@@ -87,7 +88,7 @@ function Home() {
 
   // Fetch videos
   const fetchVideos = useCallback(
-    async (page: number = 1, label: string = 'all', append: boolean = false) => {
+    async (page = 1, label = 'all', append = false) => {
       if (!hasMore && append) return;
 
       try {
@@ -100,20 +101,13 @@ function Home() {
           ...(searchFromUrl && { s: searchFromUrl }),
         });
 
-        const response = await fetch(`/api/videos?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch videos');
+        const res = await fetch(`/api/videos?${params}`);
+        const data = await res.json();
 
-        const data = await response.json();
-        const fetchedVideos: Video[] = data.videos;
-
-        setVideos(prev => append ? [...prev, ...fetchedVideos] : fetchedVideos);
+        setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
         setCurrentPage(page);
         setHasMore(data.pagination.hasNextPage);
-
-        // ⚠ jangan setAllLabels di sini, cukup di fetchAllVideos initial
-        setIsLoadingMore(false);
-      } catch (error) {
-        console.error('Error fetching videos:', error);
+      } finally {
         setIsLoadingMore(false);
       }
     },
@@ -147,51 +141,32 @@ function Home() {
     return () => observer.disconnect();
   }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
 
-  const fetchAllVideos = useCallback(async () => {
+  const fetchMeta = useCallback(async () => {
     try {
-      const response = await fetch(`/api/videos?limit=1000`);
+      const res = await fetch('/api/videos/meta');
+      if (!res.ok) throw new Error();
 
-      if (!response.ok) throw new Error("Fetch all videos failed");
+      const data = await res.json();
 
-      const data: ApiResponse = await response.json();
-      setAllVideos(data.videos || []);
+      const counts = new Map<string, number>();
+      data.labels.forEach((l: { label: string; count: number }) => {
+        counts.set(l.label, l.count);
+      });
+
+      setLabelCounts(counts);
+      setAllLabels(data.labels.map((l: any) => l.label));
+      setTotalVideos(data.totalVideos); // 🔥 INI KUNCI
     } catch (err) {
       console.error(err);
-      setAllVideos([]);
     }
   }, []);
-
-  // Calculate label counts
-  const labelCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    allVideos.forEach(video => {
-      video.labels.forEach(label => {
-        counts.set(label, (counts.get(label) || 0) + 1);
-      });
-    });
-    return counts;
-  }, [allVideos]);
-
-  // ← Re-calculate ketika allVideos berubah
-
-  useEffect(() => {
-    const labels = new Set<string>();
-    allVideos.forEach(video => {
-      video.labels.forEach(label => labels.add(label));
-    });
-    setAllLabels(Array.from(labels).sort());
-  }, [allVideos]);
 
   // Initial load
   // Di useEffect initial load:
   // Initial load, hanya sekali saat component mount
   useEffect(() => {
-    const init = async () => {
-      await fetchAllVideos();                 // untuk label counts
-      fetchVideos(1, selectedLabel, false);   // page 1 awal
-    };
-
-    init();
+    fetchMeta();                    // 1x untuk labels + count
+    fetchVideos(1, selectedLabel);
 
     // Cek apakah sudah login sebelumnya
     const savedPass = sessionStorage.getItem("admin_pass");
@@ -248,8 +223,8 @@ function Home() {
     setSelectedLabel(label);
     setCurrentPage(1);
     setHasMore(true);
-    setVideos([]);  // kosongkan grid
-    fetchVideos(1, label, false); // fetch page 1 untuk label baru
+    setVideos([]);
+    fetchVideos(1, label, false);
   };
 
   const executeAction = async (
@@ -272,7 +247,7 @@ function Home() {
       setIsAddDialogOpen(false);
 
       // Refresh semua video dan labels
-      await fetchAllVideos(); // untuk update allLabels
+      await fetchMeta(); // untuk update allLabels
       fetchVideos(1, 'all', false);
     }
 
@@ -292,7 +267,7 @@ function Home() {
       setSelectedVideo(null);
 
       // Refresh allVideos dan fetch videos
-      await fetchAllVideos();
+      await fetchMeta();
       fetchVideos(currentPage, selectedLabel);
     }
 
@@ -310,7 +285,7 @@ function Home() {
       setSelectedVideo(null);
 
       // Refresh allVideos dan fetch videos
-      await fetchAllVideos();
+      await fetchMeta();
       fetchVideos(currentPage, selectedLabel);
     }
   };
@@ -570,7 +545,7 @@ function Home() {
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all">All Labels ({allVideos?.length || 0})</SelectItem>
+                  <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
                   {Array.from(labelCounts.keys())
                     .sort((a, b) => a.localeCompare(b))
                     .map(label => (
@@ -616,7 +591,7 @@ function Home() {
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all">All Labels ({allVideos.length})</SelectItem>
+                  <SelectItem value="all">All Labels ({Array.from(labelCounts.values()).reduce((a, b) => a + b, 0)})</SelectItem>
                   {[...allLabels]
                     .sort((a, b) => a.localeCompare(b))
                     .map(label => (
