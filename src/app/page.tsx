@@ -88,7 +88,7 @@ function Home() {
   // Fetch videos
   const fetchVideos = useCallback(
     async (page: number = 1, label: string = 'all', append: boolean = false) => {
-      if (!hasMore && append) return; // kalau sudah habis, skip
+      if (!hasMore && append) return;
 
       try {
         setIsLoadingMore(true);
@@ -100,21 +100,17 @@ function Home() {
           ...(searchFromUrl && { s: searchFromUrl }),
         });
 
-
         const response = await fetch(`/api/videos?${params}`);
         if (!response.ok) throw new Error('Failed to fetch videos');
 
         const data = await response.json();
         const fetchedVideos: Video[] = data.videos;
 
-        // append atau replace
-        setVideos(prev => (append ? [...prev, ...fetchedVideos] : fetchedVideos));
+        setVideos(prev => append ? [...prev, ...fetchedVideos] : fetchedVideos);
         setCurrentPage(page);
         setHasMore(data.pagination.hasNextPage);
 
-        // sync all labels
-        setAllLabels(data.allLabels || []);
-
+        // ⚠ jangan setAllLabels di sini, cukup di fetchAllVideos initial
         setIsLoadingMore(false);
       } catch (error) {
         console.error('Error fetching videos:', error);
@@ -143,7 +139,7 @@ function Home() {
           fetchVideos(currentPage + 1, selectedLabel, true);
         }
       },
-      { rootMargin: '200px' } // trigger sebelum footer terlihat
+      { rootMargin: '200px' }
     );
 
     observer.observe(loadMoreRef.current);
@@ -188,41 +184,38 @@ function Home() {
 
   // Initial load
   // Di useEffect initial load:
+  // Initial load, hanya sekali saat component mount
   useEffect(() => {
-    fetchAllVideos();
-    fetchVideos(currentPage, selectedLabel);
+    const init = async () => {
+      await fetchAllVideos();                 // untuk label counts
+      fetchVideos(1, selectedLabel, false);   // page 1 awal
+    };
+
+    init();
 
     // Cek apakah sudah login sebelumnya
     const savedPass = sessionStorage.getItem("admin_pass");
     if (savedPass) {
-      // Verifikasi ulang password
       const verifyStoredPassword = async () => {
         try {
           const response = await fetch('/api/videos/verify-password', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: savedPass }),
           });
-          
-          if (response.ok) {
-            setIsAuthenticated(true);
-          } else {
-            // Password tidak valid, hapus dari storage
+          if (response.ok) setIsAuthenticated(true);
+          else {
             sessionStorage.removeItem("admin_pass");
             setIsAuthenticated(false);
           }
-        } catch (error) {
-          console.error('Error verifying stored password:', error);
+        } catch {
           sessionStorage.removeItem("admin_pass");
           setIsAuthenticated(false);
         }
       };
-      
       verifyStoredPassword();
     }
-  }, [fetchAllVideos, fetchVideos]);
+  }, []);  // ⚠ kosong agar hanya run sekali
 
   useEffect(() => {
     const checkMobile = () => {
@@ -255,7 +248,8 @@ function Home() {
     setSelectedLabel(label);
     setCurrentPage(1);
     setHasMore(true);
-    fetchVideos(1, label, false);
+    setVideos([]);  // kosongkan grid
+    fetchVideos(1, label, false); // fetch page 1 untuk label baru
   };
 
   const executeAction = async (
