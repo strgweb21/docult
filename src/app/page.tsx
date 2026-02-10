@@ -133,7 +133,10 @@ function Home() {
 
   const fetchMeta = useCallback(async () => {
     try {
-      const res = await fetch('/api/videos/meta');
+      const res = await fetch('/api/videos/meta', {
+        cache: 'no-store',
+      });
+
       if (!res.ok) throw new Error();
 
       const data = await res.json();
@@ -145,7 +148,7 @@ function Home() {
 
       setLabelCounts(counts);
       setAllLabels(data.labels.map((l: any) => l.label));
-      setTotalVideos(data.totalVideos); // 🔥 INI KUNCI
+      setTotalVideos(data.totalVideos);
     } catch (err) {
       console.error(err);
     }
@@ -935,7 +938,6 @@ function Home() {
                               : 'bg-black text-white hover:bg-gray-700'
                           }`}
                       >
-                        {selected}
                         {label}
                       </Badge>
                     );
