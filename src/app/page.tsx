@@ -100,20 +100,11 @@ function Home() {
         });
 
         const res = await fetch(`/api/videos?${params}`);
-        if (!res.ok) throw new Error('Fetch videos failed');
-
         const data = await res.json();
-
-        if (!Array.isArray(data?.videos)) {
-          console.error('Invalid videos payload:', data);
-          setVideos([]);
-          setHasMore(false);
-          return;
-        }
 
         setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
         setCurrentPage(page);
-        setHasMore(Boolean(data.pagination?.hasNextPage));
+        setHasMore(data.pagination.hasNextPage);
       } finally {
         setIsLoadingMore(false);
       }
