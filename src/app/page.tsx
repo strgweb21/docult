@@ -64,7 +64,9 @@ function Home() {
   const [hasMore, setHasMore] = useState(true); // apakah masih ada video untuk load
   const [passwordError, setPasswordError] = useState('');
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState('');
+  const searchParams = useSearchParams();
+  const searchFromUrl = searchParams.get('s') || '';
+  const [searchInput, setSearchInput] = useState(searchFromUrl);
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'delete';
@@ -86,7 +88,7 @@ function Home() {
 
   // Fetch videos
   const fetchVideos = useCallback(
-    async (page = 1, label = 'all', search = '', append = false) => {
+    async (page = 1, label = 'all', append = false) => {
       if (!hasMore && append) return;
 
       try {
@@ -96,37 +98,29 @@ function Home() {
           page: page.toString(),
           limit: '20',
           ...(label !== 'all' && { label }),
-          ...(search && { s: search }),
+          ...(searchFromUrl && { s: searchFromUrl }),
         });
 
         const res = await fetch(`/api/videos?${params}`);
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch videos');
-        }
-
         const data = await res.json();
 
-        const safeVideos = Array.isArray(data.videos) ? data.videos : [];
-
-        setVideos(prev =>
-          append ? [...prev, ...safeVideos] : safeVideos
-        );
-
+        setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
         setCurrentPage(page);
-        setHasMore(Boolean(data.pagination?.hasNextPage));
-      } catch (err) {
-        console.error(err);
-
-        // 🔒 PENTING: JANGAN PERNAH SET undefined
-        if (!append) setVideos([]);
-        setHasMore(false);
+        setHasMore(data.pagination.hasNextPage);
       } finally {
         setIsLoadingMore(false);
       }
     },
-    [hasMore]
+    [hasMore, searchFromUrl]
   );
+
+  useEffect(() => {
+    fetchVideos(1, selectedLabel);
+  }, [searchFromUrl]);
+
+  useEffect(() => {
+    setSearchInput(searchFromUrl);
+  }, [searchFromUrl]);
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -136,7 +130,7 @@ function Home() {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-          fetchVideos(currentPage + 1, selectedLabel, searchInput, true);
+          fetchVideos(currentPage + 1, selectedLabel, true);
         }
       },
       { rootMargin: '200px' }
@@ -199,17 +193,6 @@ function Home() {
   }, []);  // ⚠ kosong agar hanya run sekali
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setVideos([]);
-      setCurrentPage(1);
-      setHasMore(true);
-      fetchVideos(1, selectedLabel, searchInput, false);
-    }, 400); // debounce 400ms
-
-    return () => clearTimeout(handler);
-  }, [searchInput, selectedLabel]);
-
-  useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -241,8 +224,7 @@ function Home() {
     setCurrentPage(1);
     setHasMore(true);
     setVideos([]);
-
-    fetchVideos(1, label, searchInput, false);
+    fetchVideos(1, label, false);
   };
 
   const executeAction = async (
@@ -266,7 +248,7 @@ function Home() {
 
       // Refresh semua video dan labels
       await fetchMeta(); // untuk update allLabels
-      fetchVideos(1, 'all', searchInput, false);
+      fetchVideos(1, 'all', false);
     }
 
     if (type === 'edit' && selectedVideo) {
@@ -523,9 +505,33 @@ function Home() {
                     placeholder="Search by title..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full pr-8 bg-black text-white"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        router.push(
+                          searchInput
+                            ? `/?s=${encodeURIComponent(searchInput)}`
+                            : `/`
+                        );
+                      }
+                    }}
+                    className="w-full pr-8 bg-black text-white placeholder-gray-400 border-gray-700 rounded-r-none"
                   />
                 </div>
+
+                {/* SEARCH BUTTON */}
+                <Button
+                  onClick={() =>
+                    router.push(
+                      searchInput
+                        ? `/?s=${encodeURIComponent(searchInput)}`
+                        : `/`
+                    )
+                  }
+                  className="rounded-l-none bg-white text-black hover:bg-gray-200"
+                >
+                  Search
+                </Button>
+
               </div>
             </div>
 
@@ -535,7 +541,7 @@ function Home() {
               <div className="flex items-center gap-2">
                 <Label htmlFor="labelFilter" className="text-white"></Label>
                 <Select value={selectedLabel} onValueChange={handleLabelFilter}>
-                <SelectTrigger id="labelFilter" className="w-60 text-white border-gray-700">
+                <SelectTrigger id="labelFilter" className="w-48 text-white border-gray-700">
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black border-gray-700">
@@ -579,6 +585,7 @@ function Home() {
           <div className="md:hidden mt-4 flex flex-col gap-4 bg-black p-4 rounded-lg">
             {/* Filter */}
             <div className="flex items-center gap-2">
+              <Label htmlFor="labelFilterMobile" className="text-white text-gray-300">Filter:</Label>
               <Select value={selectedLabel} onValueChange={handleLabelFilter}>
                 <SelectTrigger id="labelFilterMobile" className="w-full text-white border-gray-700">
                   <SelectValue placeholder="All Labels" />
@@ -598,12 +605,34 @@ function Home() {
 
             {/* Search */}
             <div className="relative">
-                  <Input
-                    placeholder="Search by title..."
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full pr-8 bg-black text-white"
-                  />
+              <Input
+                placeholder="Search by title..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    router.push(
+                      searchInput
+                        ? `/?s=${encodeURIComponent(searchInput)}`
+                        : `/`
+                    );
+                  }
+                }}
+                className="w-full pr-10 bg-black text-white placeholder-gray-400 border-gray-700"
+              />
+
+              <Button
+                onClick={() =>
+                  router.push(
+                    searchInput
+                      ? `/?s=${encodeURIComponent(searchInput)}`
+                      : `/`
+                  )
+                }
+                className="absolute right-0 top-0 h-full rounded-l-none bg-white text-black"
+              >
+                Search
+              </Button>
             </div>
 
             {/* Add Video */}
@@ -643,45 +672,20 @@ function Home() {
                       />
 
                       {/* Labels di atas kiri */}
-                      <div className="absolute top-2 left-2 flex gap-1 flex-wrap max-w-[90%]">
-                        {/* LABEL UTAMA — mobile & desktop */}
-                        {video.labels.slice(0, 1).map(label => (
+                      <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10">
+                        {video.labels.slice(0, 2).map(label => (
                           <Badge
                             key={label}
                             variant="secondary"
-                            className="
-                              bg-black/60 text-white rounded
-                              text-[10px] px-0.5 py-0
-                              sm:text-xs sm:px-1 sm:py-0.5
-                            "
+                            className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
                           >
                             {label}
                           </Badge>
                         ))}
-
-                        {/* LABEL KE-2 — desktop only */}
-                        {video.labels.length > 1 && (
-                          <Badge
-                            variant="secondary"
-                            className="
-                              hidden sm:inline-flex
-                              bg-black/60 text-white rounded
-                              text-xs px-1 py-0.5
-                            "
-                          >
-                            {video.labels[1]}
-                          </Badge>
-                        )}
-
-                        {/* +N — mobile & desktop */}
                         {video.labels.length > 2 && (
                           <Badge
                             variant="secondary"
-                            className="
-                              bg-black/60 text-white rounded
-                              text-[10px] px-0.5 py-0
-                              sm:text-xs sm:px-1 sm:py-0.5
-                            "
+                            className="text-xs bg-black/60 text-white px-1 py-0.5 rounded"
                           >
                             +{video.labels.length - 2}
                           </Badge>
@@ -986,86 +990,67 @@ function Home() {
 
       {/* Edit Video Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent
-          className="max-w-2xl max-h-[90vh] flex flex-col"
-          zIndex={200}
-        >
-          {/* HEADER */}
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" zIndex={200}>
+          <DialogHeader>
             <DialogTitle>Edit Video</DialogTitle>
           </DialogHeader>
-
-          {/* BODY (SCROLLABLE) */}
-          <div className="flex-1 overflow-y-auto px-6 pr-4 space-y-4">
+          <div className="space-y-4">
             <div>
               <Label htmlFor="editTitle">Title *</Label>
               <Input
                 id="editTitle"
                 value={formData.title}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, title: e.target.value }))
-                }
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Enter video title"
               />
             </div>
-
             <div>
               <Label htmlFor="editEmbedLink">Embed Link *</Label>
               <Input
                 id="editEmbedLink"
                 value={formData.embedLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, embedLink: e.target.value }))
-                }
+                onChange={(e) => setFormData(prev => ({ ...prev, embedLink: e.target.value }))}
+                placeholder="https://www.youtube.com/embed/..."
               />
             </div>
-
             <div>
               <Label htmlFor="editThumbnailLink">Thumbnail Link *</Label>
               <Input
                 id="editThumbnailLink"
                 value={formData.thumbnailLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))
-                }
+                onChange={(e) => setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))}
+                placeholder="https://example.com/thumbnail.jpg"
               />
             </div>
-
             <div>
               <Label htmlFor="editDownloadLink">Download Link (optional)</Label>
               <Input
                 id="editDownloadLink"
                 value={formData.downloadLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, downloadLink: e.target.value }))
-                }
+                onChange={(e) => setFormData(prev => ({ ...prev, downloadLink: e.target.value }))}
+                placeholder="https://example.com/download/video.mp4"
               />
             </div>
 
-            {/* LABELS */}
+            {/* Labels Input */}
             <div>
               <Label>Labels</Label>
-
               <div className="flex gap-2 mt-2">
                 <Input
                   value={formData.newLabel}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, newLabel: e.target.value }))
-                  }
+                  onChange={(e) => setFormData(prev => ({ ...prev, newLabel: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
                   placeholder="Add a label"
                 />
-                <Button
-                  type="button"
-                  onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-200"
-                >
+                <Button type="button" onClick={handleAddLabel} className="bg-white text-black hover:bg-gray-200">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
 
+              {/* Labels yang sudah dipilih */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.labels.map(label => (
-                  <Badge key={label} className="bg-black text-white">
+                  <Badge key={label} variant="secondary" className="bg-black text-white">
                     {label}
                     <button
                       type="button"
@@ -1077,7 +1062,6 @@ function Home() {
                   </Badge>
                 ))}
               </div>
-
               <div className="mt-4">
                 <p className="text-sm text-black mb-2">Existing labels:</p>
 
@@ -1089,13 +1073,14 @@ function Home() {
                       <Badge
                         key={label}
                         onClick={() => toggleExistingLabel(label)}
-                        className={`cursor-pointer transition-all
+                        className={`cursor-pointer select-none transition-all
                           ${
                             selected
                               ? 'bg-white text-black border border-black'
                               : 'bg-black text-white hover:bg-gray-700'
                           }`}
                       >
+                        {selected}
                         {label}
                       </Badge>
                     );
@@ -1103,26 +1088,16 @@ function Home() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* FOOTER (STICKY) */}
-          <div className="shrink-0 border-t flex justify-end gap-2">
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
-              onClick={() => setIsEditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
-              onClick={handleEditVideo}
-              disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-            >
-              Save Changes
-            </Button>
+            {/* Buttons */}
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={handleEditVideo} disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}>
+                Save Changes
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
