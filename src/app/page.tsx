@@ -517,22 +517,21 @@ function Home() {
             <div className="flex items-center gap-4">
               {/* Filter */}
               <div className="flex items-center gap-2">
-                <Label htmlFor="labelFilter" className="text-white"></Label>
                 <Select value={selectedLabel} onValueChange={handleLabelFilter}>
-                <SelectTrigger id="labelFilter" className="w-60 text-white border-gray-700">
-                  <SelectValue placeholder="All Labels" />
-                </SelectTrigger>
-                <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
-                  {Array.from(labelCounts.keys())
-                    .sort((a, b) => a.localeCompare(b))
-                    .map(label => (
-                    <SelectItem key={label} value={label}>
-                      {label} ({labelCounts.get(label)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger id="labelFilter" className="w-60 text-white">
+                    <SelectValue placeholder="All Labels" />
+                  </SelectTrigger>
+                  <SelectContent className="text-white bg-black border-gray-700">
+                    <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
+                    {Array.from(labelCounts.keys())
+                      .sort((a, b) => a.localeCompare(b))
+                      .map(label => (
+                      <SelectItem key={label} value={label}>
+                        {label} ({labelCounts.get(label)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Add Video */}
@@ -564,18 +563,18 @@ function Home() {
             {/* Filter */}
             <div className="flex items-center gap-2">
               <Select value={selectedLabel} onValueChange={handleLabelFilter}>
-                <SelectTrigger id="labelFilterMobile" className="w-full text-white border-gray-700">
+                <SelectTrigger id="labelFilterMobile" className="w-full text-white">
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
-                <SelectContent className="text-white bg-black border-gray-700">
-                  <SelectItem value="all">All Labels ({Array.from(labelCounts.values()).reduce((a, b) => a + b, 0)})</SelectItem>
-                  {[...allLabels]
-                    .sort((a, b) => a.localeCompare(b))
-                    .map(label => (
-                    <SelectItem key={label} value={label}>
-                      {label} ({labelCounts.get(label) || 0})
-                    </SelectItem>
-                  ))}
+                <SelectContent className="text-white bg-black">
+                    <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
+                    {Array.from(labelCounts.keys())
+                      .sort((a, b) => a.localeCompare(b))
+                      .map(label => (
+                      <SelectItem key={label} value={label}>
+                        {label} ({labelCounts.get(label)})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
