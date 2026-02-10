@@ -100,11 +100,27 @@ function Home() {
         });
 
         const res = await fetch(`/api/videos?${params}`);
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch videos');
+        }
+
         const data = await res.json();
 
-        setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
+        const safeVideos = Array.isArray(data.videos) ? data.videos : [];
+
+        setVideos(prev =>
+          append ? [...prev, ...safeVideos] : safeVideos
+        );
+
         setCurrentPage(page);
-        setHasMore(data.pagination.hasNextPage);
+        setHasMore(Boolean(data.pagination?.hasNextPage));
+      } catch (err) {
+        console.error(err);
+
+        // 🔒 PENTING: JANGAN PERNAH SET undefined
+        if (!append) setVideos([]);
+        setHasMore(false);
       } finally {
         setIsLoadingMore(false);
       }
