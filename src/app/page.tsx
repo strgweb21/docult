@@ -100,11 +100,20 @@ function Home() {
         });
 
         const res = await fetch(`/api/videos?${params}`);
+        if (!res.ok) throw new Error('Fetch videos failed');
+
         const data = await res.json();
+
+        if (!Array.isArray(data?.videos)) {
+          console.error('Invalid videos payload:', data);
+          setVideos([]);
+          setHasMore(false);
+          return;
+        }
 
         setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
         setCurrentPage(page);
-        setHasMore(data.pagination.hasNextPage);
+        setHasMore(Boolean(data.pagination?.hasNextPage));
       } finally {
         setIsLoadingMore(false);
       }
@@ -250,7 +259,7 @@ function Home() {
 
       // Refresh semua video dan labels
       await fetchMeta(); // untuk update allLabels
-      fetchVideos(1, undefined, searchInput, false);
+      fetchVideos(1, 'all', searchInput, false);
     }
 
     if (type === 'edit' && selectedVideo) {
