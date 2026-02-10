@@ -524,7 +524,7 @@ function Home() {
                   <SelectTrigger id="labelFilter" className="w-60 text-white">
                     <SelectValue placeholder="All Labels" />
                   </SelectTrigger>
-                  <SelectContent className="text-white bg-black border-gray-700">
+                  <SelectContent className="text-white bg-black">
                     <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
                     {Array.from(labelCounts.keys())
                       .sort((a, b) => a.localeCompare(b))
@@ -603,14 +603,14 @@ function Home() {
 
       {/* Main Content */}
       <main className="flex-1 p-2">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-8xl mx-auto">
           {/* Video Grid */}
           {videos.length === 0 ? (
             <div className="flex items-center justify-center h-96 text-gray-400">
               <p>No videos found.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
               {videos
                 .map(video => (
                   <div
@@ -659,14 +659,28 @@ function Home() {
                           </Badge>
                         )}
 
-                        {/* +N — mobile & desktop */}
+                        {/* +N — mobile */}
+                        {video.labels.length > 1 && (
+                          <Badge
+                            variant="secondary"
+                            className="
+                              sm:hidden
+                              bg-black/60 text-white rounded
+                              text-[10px] px-0.5 py-0
+                            "
+                          >
+                            +{video.labels.length - 1}
+                          </Badge>
+                        )}
+
+                        {/* +N — desktop */}
                         {video.labels.length > 2 && (
                           <Badge
                             variant="secondary"
                             className="
+                              hidden sm:inline-flex
                               bg-black/60 text-white rounded
-                              text-[10px] px-0.5 py-0
-                              sm:text-xs sm:px-1 sm:py-0.5
+                              text-xs px-1 py-0.5
                             "
                           >
                             +{video.labels.length - 2}
