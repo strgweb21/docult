@@ -777,7 +777,9 @@ function Home() {
               {/* Width Controls + Close */}
               <div className="flex justify-center mt-4">
                 <div className="flex flex-wrap gap-2 items-center">
-                  {[500, 820, 960].map(width => (
+
+                  {/* Width buttons hanya tampil di desktop */}
+                  {!isMobile && [500, 820, 960].map(width => (
                     <Button
                       key={width}
                       variant={videoWidth === width ? 'default' : 'outline'}
@@ -796,7 +798,7 @@ function Home() {
                     </Button>
                   ))}
 
-                  {/* Tombol Close */}
+                  {/* Tombol Close tetap tampil */}
                   <Button
                     variant="outline"
                     size="sm"
