@@ -38,13 +38,20 @@ export async function PUT(
         embedLink,
         thumbnailLink,
         downloadLink: downloadLink || '',
-        labels: labels ? JSON.stringify(labels) : '[]',
+        labels:
+          Array.isArray(labels)
+            ? labels.join(",")
+            : typeof labels === "string"
+            ? labels
+            : "",
       },
     });
 
     return NextResponse.json({
       ...video,
-      labels: video.labels ? JSON.parse(video.labels) : [],
+      labels: video.labels
+        ? video.labels.split(",").map(l => l.trim())
+        : [],
     });
   } catch (error) {
     console.error('Error updating video:', error);

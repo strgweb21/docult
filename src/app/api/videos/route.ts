@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     if (label) {
-      // masih JSON string → minimal fix
       where.labels = {
-        contains: `"${label}"`,
+        contains: label,
+        mode: "insensitive",
       };
     }
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       videos: videos.map(v => ({
         ...v,
-        labels: v.labels ? JSON.parse(v.labels) : [],
+        labels: v.labels ? v.labels.split(",").map(l => l.trim()) : [],
       })),
       pagination: {
         page,
@@ -94,13 +94,20 @@ export async function POST(request: NextRequest) {
         embedLink,
         thumbnailLink,
         downloadLink: downloadLink || '',
-        labels: labels ? JSON.stringify(labels) : '[]',
+        labels:
+          Array.isArray(labels)
+            ? labels.join(",")
+            : typeof labels === "string"
+            ? labels
+            : "",
       },
     });
 
     return NextResponse.json({
       ...video,
-      labels: video.labels ? JSON.parse(video.labels) : [],
+      labels: video.labels
+        ? video.labels.split(",").map(l => l.trim())
+        : [],
     });
   } catch (error) {
     console.error('Error creating video:', error);

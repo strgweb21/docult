@@ -17,7 +17,9 @@ export async function GET() {
     const labelCounts = new Map<string, number>();
 
     videos.forEach(v => {
-      const labels: string[] = v.labels ? JSON.parse(v.labels) : [];
+      const labels: string[] = v.labels
+        ? v.labels.split(",").map(l => l.trim()).filter(Boolean)
+        : [];
       labels.forEach(label => {
         labelCounts.set(label, (labelCounts.get(label) || 0) + 1);
       });

@@ -59,11 +59,15 @@ function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [password, setPassword] = useState('');
+  const [turbovipKey, setTurbovipKey] = useState("")
+  const [syncLoading, setSyncLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true); // apakah masih ada video untuk load
   const [passwordError, setPasswordError] = useState('');
+  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const router = useRouter();
+  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [pendingAction, setPendingAction] = useState<{
@@ -102,9 +106,9 @@ function Home() {
         const res = await fetch(`/api/videos?${params}`);
         const data = await res.json();
 
-        setVideos(prev => append ? [...prev, ...data.videos] : data.videos);
+        setVideos(prev => append ? [...prev, ...(data.videos || [])] : (data.videos || []));
         setCurrentPage(page);
-        setHasMore(data.pagination.hasNextPage);
+        setHasMore(data.pagination?.hasNextPage ?? false);
       } finally {
         setIsLoadingMore(false);
       }
@@ -488,6 +492,47 @@ function Home() {
     }
   };
 
+  const handleTurboSync = async () => {
+    if (!turbovipKey) return
+
+    try {
+      setSyncLoading(true)
+
+      const res = await fetch("/api/turbovip/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          apiKey: turbovipKey
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || "Sync gagal")
+        return
+      }
+
+      alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`)
+      fetchMeta()
+      fetchVideos(1, selectedLabel)
+
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const maskApiKey = (key: string) => {
+    if (key.length <= 8) return key;
+    
+    const visible = 6; // karakter awal yang terlihat
+    const masked = key.slice(visible).replace(/./g, "•");
+    
+    return key.slice(0, visible) + masked;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
@@ -540,8 +585,8 @@ function Home() {
               {/* Add Video */}
               <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
                 <Plus className="h-4 w-4" />
-                Add Video
               </Button>
+              
             </div>
           </div>
 
@@ -631,7 +676,8 @@ function Home() {
                       {/* Labels di atas kiri */}
                       <div className="absolute top-2 left-2 flex gap-1 flex-wrap max-w-[90%]">
                         {/* LABEL UTAMA — mobile & desktop */}
-                        {video.labels.slice(0, 1).map(label => (
+                        {Array.isArray(video.labels) &&
+                        video.labels.slice(0,1).map(label => (
                           <Badge
                             key={label}
                             variant="secondary"
@@ -829,25 +875,19 @@ function Home() {
                 >
                   Edit
                 </Button>
-                <Button
-                  variant="outline"
-                  className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    
-                    if (!isAuthenticated) {
+                {isAuthenticated && (
+                  <Button
+                    variant="outline"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setSelectedVideo(selectedVideo);
-                      setPendingAction({ type: 'delete', data: selectedVideo });
-                      setIsPasswordDialogOpen(true);
-                      return;
-                    }
-                    
-                    setSelectedVideo(selectedVideo);
-                    setIsDeleteDialogOpen(true);
-                  }}
-                >
-                  Delete
-                </Button>
+                      setIsDeleteDialogOpen(true);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
                 {selectedVideo.downloadLink && (
                   <Button
                     variant="outline"
@@ -964,23 +1004,48 @@ function Home() {
           </div>
 
           {/* FOOTER STICKY */}
-          <div className="shrink-0 border-t flex justify-end gap-2">
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
-              onClick={() => setIsAddDialogOpen(false)}
-            >
-              Cancel
-            </Button>
+          <div className="shrink-0 border-t flex items-center justify-between gap-2">
 
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
-              onClick={handleAddVideo}
-              disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-            >
-              Add Video
-            </Button>
+            {/* TurboVip Sync */}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="API Key"
+                value={isEditingApiKey ? turbovipKey : maskApiKey(turbovipKey)}
+                onFocus={() => setIsEditingApiKey(true)}
+                onBlur={() => setIsEditingApiKey(false)}
+                onChange={(e)=>setTurbovipKey(e.target.value)}
+                className="w-40"
+              />
+
+              <Button
+                onClick={handleTurboSync}
+                disabled={syncLoading || !turbovipKey}
+                className="bg-black text-white"
+              >
+                {syncLoading ? "Syncing..." : "Sync"}
+              </Button>
+            </div>
+
+            {/* Add Video Buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="border-gray-700 text-black hover:bg-gray-200"
+                onClick={() => setIsAddDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                variant="outline"
+                className="border-gray-700 text-black hover:bg-gray-200"
+                onClick={handleAddVideo}
+                disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
+              >
+                Add Video
+              </Button>
+            </div>
+
           </div>
         </DialogContent>
       </Dialog>
