@@ -69,6 +69,7 @@ function Home() {
   const router = useRouter();
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
+  const [provider, setProvider] = useState<"turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me">("turbovip")
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'delete';
@@ -116,6 +117,26 @@ function Home() {
     [hasMore]
   );
 
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return "";
+
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : "";
+  };
+
+  const setCookie = (name: string, value: string, days = 365) => {
+    const d = new Date();
+    d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+
+    document.cookie =
+      name +
+      "=" +
+      encodeURIComponent(value) +
+      ";expires=" +
+      d.toUTCString() +
+      ";path=/";
+  };
+
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -157,6 +178,11 @@ function Home() {
       console.error(err);
     }
   }, []);
+
+  useEffect(() => {
+    const key = getCookie(`api_${provider}`);
+    setTurbovipKey(key || "");
+  }, [provider]);
 
   // Initial load
   // Di useEffect initial load:
@@ -493,12 +519,14 @@ function Home() {
   };
 
   const handleTurboSync = async () => {
+
     if (!turbovipKey) return
 
     try {
+
       setSyncLoading(true)
 
-      const res = await fetch("/api/turbovip/sync", {
+      const res = await fetch(`/api/${provider}/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -516,12 +544,14 @@ function Home() {
       }
 
       alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`)
+
       fetchMeta()
       fetchVideos(1, selectedLabel)
 
     } finally {
       setSyncLoading(false)
     }
+
   }
 
   const maskApiKey = (key: string) => {
@@ -640,7 +670,6 @@ function Home() {
             {/* Add Video */}
             <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
               <Plus className="h-4 w-4" />
-              Add Video
             </Button>
           </div>
         )}
@@ -908,346 +937,491 @@ function Home() {
 
       {/* Add Video Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" zIndex={200} >
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle>Add Video</DialogTitle>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col bg-black text-white border border-gray-800">
+
+          {/* HEADER */}
+          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
+            <DialogTitle className="text-lg font-semibold">
+              Add Video
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto pr-1 space-y-4">
-            <div>
-              <Label htmlFor="title">Title *</Label>
+          
+          {/* BODY */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {/* PROVIDER + API */}
+            <div className="flex items-center gap-3 w-full">
+
+              {/* PROVIDER */}
+              <Select
+                value={provider}
+                onValueChange={(v) =>
+                  setProvider(v as "turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me")
+                }
+              >
+                <SelectTrigger className="w-[140px] shrink-0 bg-black text-white border-gray-700">
+                  <SelectValue />
+                </SelectTrigger>
+
+                <SelectContent className="bg-black text-white border-gray-700">
+                  <SelectItem value="turbovip">TurboVip</SelectItem>
+                  <SelectItem value="byse">BYSE</SelectItem>
+                  <SelectItem value="rpmshare">RPMShare</SelectItem>
+                  <SelectItem value="streamp2p">StreamP2P</SelectItem>
+                  <SelectItem value="seekstreaming">SeekStreaming</SelectItem>
+                  <SelectItem value="player4me">Player4Me</SelectItem>
+                </SelectContent>
+              </Select>
+
+
+              {/* API KEY INPUT (AUTO WIDTH / CLIP) */}
+              <div className="flex-1 min-w-0">
+                <Input
+                  placeholder="API Key"
+                  value={isEditingApiKey ? turbovipKey : maskApiKey(turbovipKey)}
+                  onFocus={() => setIsEditingApiKey(true)}
+                  onBlur={() => setIsEditingApiKey(false)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+
+                    setTurbovipKey(value);
+
+                    setCookie(`api_${provider}`, value);
+                  }}
+                  className="w-full bg-black text-white border-gray-700"
+                />
+              </div>
+
+
+              {/* SYNC BUTTON */}
+              <Button
+                onClick={handleTurboSync}
+                disabled={syncLoading || !turbovipKey}
+                className="shrink-0 bg-white text-black hover:bg-gray-300"
+              >
+                {syncLoading ? "Syncing..." : "Sync"}
+              </Button>
+
+            </div>
+
+            {/* TITLE */}
+            <div className="space-y-1">
+              <Label className="text-gray-300">Title *</Label>
               <Input
-                id="title"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="Enter video title"
+                className="bg-black text-white border-gray-700"
               />
             </div>
-            <div>
-              <Label htmlFor="embedLink">Embed Link *</Label>
+
+
+            {/* EMBED */}
+            <div className="space-y-1">
+              <Label className="text-gray-300">Embed Link *</Label>
               <Input
-                id="embedLink"
                 value={formData.embedLink}
                 onChange={(e) => setFormData(prev => ({ ...prev, embedLink: e.target.value }))}
                 placeholder="https://example.com/video.mp4"
+                className="bg-black text-white border-gray-700"
               />
             </div>
-            <div>
-              <Label htmlFor="thumbnailLink">Thumbnail Link *</Label>
+
+
+            {/* THUMBNAIL */}
+            <div className="space-y-1">
+              <Label className="text-gray-300">Thumbnail Link *</Label>
               <Input
-                id="thumbnailLink"
                 value={formData.thumbnailLink}
                 onChange={(e) => setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))}
                 placeholder="https://example.com/thumbnail.jpg"
+                className="bg-black text-white border-gray-700"
               />
             </div>
-            <div>
-              <Label htmlFor="downloadLink">Download Link (optional)</Label>
+
+
+            {/* DOWNLOAD */}
+            <div className="space-y-1">
+              <Label className="text-gray-300">Download Link</Label>
               <Input
-                id="downloadLink"
                 value={formData.downloadLink}
                 onChange={(e) => setFormData(prev => ({ ...prev, downloadLink: e.target.value }))}
-                placeholder="https://example.com/download/video.mp4"
+                placeholder="Optional"
+                className="bg-black text-white border-gray-700"
               />
             </div>
-            <div>
-              <Label>Labels</Label>
-              <div className="flex gap-2 mt-2">
+
+
+            {/* LABELS */}
+            <div className="space-y-3">
+
+              <Label className="text-gray-300">Labels</Label>
+
+              <div className="flex gap-2">
                 <Input
                   value={formData.newLabel}
                   onChange={(e) => setFormData(prev => ({ ...prev, newLabel: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
-                  placeholder="Add a label"
+                  placeholder="Add label"
+                  className="bg-black text-white border-gray-700"
                 />
-                <Button type="button" onClick={handleAddLabel} className="bg-white text-black hover:bg-gray-200">
+
+                <Button
+                  type="button"
+                  onClick={handleAddLabel}
+                  className="bg-white text-black hover:bg-gray-300"
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
+
+
+              {/* SELECTED LABELS */}
+              <div className="flex flex-wrap gap-2">
+
                 {formData.labels.map(label => (
-                  <Badge key={label} variant="secondary" className="bg-black text-white">
+                  <Badge key={label} className="bg-white text-black">
+
                     {label}
+
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
                       className="ml-1 hover:text-red-500"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3 w-3"/>
                     </button>
+
                   </Badge>
                 ))}
+
               </div>
-              <div className="mt-4">
-                <p className="text-sm text-black mb-2">Existing labels:</p>
+
+
+              {/* EXISTING LABELS */}
+
+              <div>
+                <p className="text-sm text-gray-400 mb-2">
+                  Existing labels
+                </p>
 
                 <div className="flex flex-wrap gap-2">
+
                   {allLabels.map(label => {
-                    const selected = formData.labels.includes(label);
+
+                    const selected = formData.labels.includes(label)
 
                     return (
                       <Badge
                         key={label}
                         onClick={() => toggleExistingLabel(label)}
-                        className={`cursor-pointer select-none transition-all
+                        className={`cursor-pointer
                           ${
                             selected
-                              ? 'bg-white text-black border border-black'
-                              : 'bg-black text-white hover:bg-gray-700'
-                          }`}
+                            ? 'bg-white text-black'
+                            : 'bg-gray-800 text-white hover:bg-gray-700'
+                          }
+                        `}
                       >
                         {label}
                       </Badge>
-                    );
+                    )
                   })}
+
                 </div>
+
               </div>
-            </div>
-          </div>
 
-          {/* FOOTER STICKY */}
-          <div className="shrink-0 border-t flex items-center justify-between gap-2">
-
-            {/* TurboVip Sync */}
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="API Key"
-                value={isEditingApiKey ? turbovipKey : maskApiKey(turbovipKey)}
-                onFocus={() => setIsEditingApiKey(true)}
-                onBlur={() => setIsEditingApiKey(false)}
-                onChange={(e)=>setTurbovipKey(e.target.value)}
-                className="w-40"
-              />
-
-              <Button
-                onClick={handleTurboSync}
-                disabled={syncLoading || !turbovipKey}
-                className="bg-black text-white"
-              >
-                {syncLoading ? "Syncing..." : "Sync"}
-              </Button>
-            </div>
-
-            {/* Add Video Buttons */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={() => setIsAddDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-200"
-                onClick={handleAddVideo}
-                disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-              >
-                Add Video
-              </Button>
             </div>
 
           </div>
+
+
+          {/* FOOTER */}
+          <div className="flex justify-end gap-3">
+
+            <Button
+              variant="outline"
+              className="border-gray-700 text-black hover:bg-gray-800"
+              onClick={() => setIsAddDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={handleAddVideo}
+              disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
+              className="bg-white text-black hover:bg-gray-300"
+            >
+              Add Video
+            </Button>
+
+          </div>
+
         </DialogContent>
       </Dialog>
 
       {/* Edit Video Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent
-          className="max-w-2xl max-h-[90vh] flex flex-col"
+          className="max-w-2xl max-h-[90vh] flex flex-col bg-black text-white border border-gray-800"
           zIndex={200}
         >
+
           {/* HEADER */}
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle>Edit Video</DialogTitle>
+          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
+            <DialogTitle className="text-lg font-semibold">
+              Edit Video
+            </DialogTitle>
           </DialogHeader>
 
-          {/* BODY (SCROLLABLE) */}
-          <div className="flex-1 overflow-y-auto px-6 pr-4 space-y-4">
-            <div>
-              <Label htmlFor="editTitle">Title *</Label>
+          {/* BODY */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+            <div className="space-y-1">
+              <Label htmlFor="editTitle" className="text-gray-300">Title *</Label>
               <Input
                 id="editTitle"
                 value={formData.title}
                 onChange={(e) =>
                   setFormData(prev => ({ ...prev, title: e.target.value }))
                 }
+                className="bg-black text-white border-gray-700"
               />
             </div>
 
-            <div>
-              <Label htmlFor="editEmbedLink">Embed Link *</Label>
+            <div className="space-y-1">
+              <Label htmlFor="editEmbedLink" className="text-gray-300">Embed Link *</Label>
               <Input
                 id="editEmbedLink"
                 value={formData.embedLink}
                 onChange={(e) =>
                   setFormData(prev => ({ ...prev, embedLink: e.target.value }))
                 }
+                className="bg-black text-white border-gray-700"
               />
             </div>
 
-            <div>
-              <Label htmlFor="editThumbnailLink">Thumbnail Link *</Label>
+            <div className="space-y-1">
+              <Label htmlFor="editThumbnailLink" className="text-gray-300">Thumbnail Link *</Label>
               <Input
                 id="editThumbnailLink"
                 value={formData.thumbnailLink}
                 onChange={(e) =>
                   setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))
                 }
+                className="bg-black text-white border-gray-700"
               />
             </div>
 
-            <div>
-              <Label htmlFor="editDownloadLink">Download Link (optional)</Label>
+            <div className="space-y-1">
+              <Label htmlFor="editDownloadLink" className="text-gray-300">
+                Download Link
+              </Label>
               <Input
                 id="editDownloadLink"
                 value={formData.downloadLink}
                 onChange={(e) =>
                   setFormData(prev => ({ ...prev, downloadLink: e.target.value }))
                 }
+                className="bg-black text-white border-gray-700"
               />
             </div>
 
             {/* LABELS */}
-            <div>
-              <Label>Labels</Label>
+            <div className="space-y-3">
 
-              <div className="flex gap-2 mt-2">
+              <Label className="text-gray-300">Labels</Label>
+
+              <div className="flex gap-2">
                 <Input
                   value={formData.newLabel}
                   onChange={(e) =>
                     setFormData(prev => ({ ...prev, newLabel: e.target.value }))
                   }
                   onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
-                  placeholder="Add a label"
+                  placeholder="Add label"
+                  className="bg-black text-white border-gray-700"
                 />
+
                 <Button
                   type="button"
                   onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-200"
+                  className="bg-white text-black hover:bg-gray-300"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4"/>
                 </Button>
               </div>
 
-              <div className="flex flex-wrap gap-2 mt-2">
+              {/* SELECTED LABELS */}
+              <div className="flex flex-wrap gap-2">
                 {formData.labels.map(label => (
-                  <Badge key={label} className="bg-black text-white">
+                  <Badge key={label} className="bg-white text-black">
+
                     {label}
+
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
-                      className="ml-1 hover:text-red-700"
+                      className="ml-1 hover:text-red-500"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3 w-3"/>
                     </button>
+
                   </Badge>
                 ))}
               </div>
 
-              <div className="mt-4">
-                <p className="text-sm text-black mb-2">Existing labels:</p>
+              {/* EXISTING LABELS */}
+              <div>
+
+                <p className="text-sm text-gray-400 mb-2">
+                  Existing labels
+                </p>
 
                 <div className="flex flex-wrap gap-2">
+
                   {allLabels.map(label => {
-                    const selected = formData.labels.includes(label);
+
+                    const selected = formData.labels.includes(label)
 
                     return (
                       <Badge
                         key={label}
                         onClick={() => toggleExistingLabel(label)}
-                        className={`cursor-pointer transition-all
+                        className={`cursor-pointer
                           ${
                             selected
-                              ? 'bg-white text-black border border-black'
-                              : 'bg-black text-white hover:bg-gray-700'
-                          }`}
+                              ? 'bg-white text-black'
+                              : 'bg-gray-800 text-white hover:bg-gray-700'
+                          }
+                        `}
                       >
                         {label}
                       </Badge>
-                    );
+                    )
                   })}
+
                 </div>
+
               </div>
+
             </div>
+
           </div>
 
-          {/* FOOTER (STICKY) */}
-          <div className="shrink-0 border-t flex justify-end gap-2">
+          {/* FOOTER */}
+          <div className="border-t border-gray-800 px-6 py-4 flex justify-end gap-3">
+
             <Button
               variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
+              className="border-gray-700 text-black hover:bg-gray-800"
               onClick={() => setIsEditDialogOpen(false)}
             >
               Cancel
             </Button>
 
             <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-200"
               onClick={handleEditVideo}
               disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
+              className="bg-white text-black hover:bg-gray-300"
             >
               Save Changes
             </Button>
+
           </div>
+
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent zIndex={200}>
+        <DialogContent
+          className="bg-black text-white border border-gray-800"
+          zIndex={200}
+        >
+
           <DialogHeader>
             <DialogTitle>Confirm Delete</DialogTitle>
           </DialogHeader>
-          <p className="text-black">Are you sure you want to delete this video? This action cannot be undone.</p>
+
+          <p className="text-gray-300">
+            Are you sure you want to delete this video?
+            This action cannot be undone.
+          </p>
+
           <div className="flex gap-2 justify-end pt-4">
-            <Button variant="outline" className="border-gray-700 text-black hover:bg-gray-200" onClick={() => setIsDeleteDialogOpen(false)}>
+
+            <Button
+              variant="outline"
+              className="border-gray-700 text-black hover:bg-gray-800"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" className="bg-red-700 text-white hover:bg-red-700" onClick={handleDeleteVideo}>
+
+            <Button
+              className="bg-red-700 text-white hover:bg-red-600"
+              onClick={handleDeleteVideo}
+            >
               Delete
             </Button>
+
           </div>
+
         </DialogContent>
       </Dialog>
 
       {/* Password Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
-        <DialogContent zIndex={200}>
+        <DialogContent
+          className="bg-black text-white border border-gray-800"
+          zIndex={200}
+        >
+
           <DialogHeader>
             <DialogTitle>Enter Password</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="password"></Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-                ref={inputRef}
-                placeholder="Password....."
-              />
-              {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
-            </div>
+
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
+              ref={inputRef}
+              placeholder="Password..."
+              className="bg-black text-white border-gray-700"
+            />
+
+            {passwordError && (
+              <p className="text-sm text-red-500">
+                {passwordError}
+              </p>
+            )}
+
             <div className="flex gap-2 justify-end">
-              <Button 
-                variant="outline" 
-                className="border-gray-700 text-black hover:bg-gray-200" 
+
+              <Button
+                variant="outline"
+                className="border-gray-700 text-black hover:bg-gray-800"
                 onClick={handlePasswordDialogClose}
               >
                 Cancel
               </Button>
-              <Button 
-                variant="outline" 
-                className="border-gray-700 text-black hover:bg-gray-200" 
+
+              <Button
                 onClick={verifyPassword}
+                className="bg-white text-black hover:bg-gray-300"
               >
                 Authenticate
               </Button>
+
             </div>
+
           </div>
+
         </DialogContent>
       </Dialog>
     </div>
