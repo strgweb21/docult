@@ -51,6 +51,8 @@ function Home() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [videoStatus, setVideoStatus] = useState<Record<string, 'ok' | 'broken' | 'checking'>>({});
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ok' | 'broken'>('all');
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -129,6 +131,33 @@ function Home() {
     },
     [hasMore, sort]
   );
+
+  const checkVideoLink = useCallback(async (video: Video) => {
+    try {
+      setVideoStatus(prev => ({ ...prev, [video.id]: 'checking' }));
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const res = await fetch(video.embedLink, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      setVideoStatus(prev => ({
+        ...prev,
+        [video.id]: res ? 'ok' : 'broken'
+      }));
+    } catch {
+      setVideoStatus(prev => ({
+        ...prev,
+        [video.id]: 'broken'
+      }));
+    }
+  }, []);
 
   const getCookie = (name: string) => {
     if (typeof document === 'undefined') return '';
@@ -229,6 +258,14 @@ function Home() {
 
     return () => clearTimeout(handler);
   }, [searchInput, selectedLabel]);
+
+  useEffect(() => {
+    videos.forEach(video => {
+      if (!videoStatus[video.id]) {
+        checkVideoLink(video);
+      }
+    });
+  }, [videos]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -652,7 +689,12 @@ function Home() {
                 className={`grid gap-4 grid-cols-2 lg:grid-cols-4${viewMode === 'grid' ? '' : 'grid-cols-1'}`}
                 style={{ gridTemplateColumns: viewMode === 'grid' ? window.innerWidth < 768 ? 'repeat(2, minmax(0, 1fr))' : `repeat(${gridCols}, minmax(0, 1fr))` : '1fr' }}
               >
-                {videos.map(video => (
+                {videos
+                  .filter(video => {
+                    if (statusFilter === 'all') return true;
+                    return videoStatus[video.id] === statusFilter;
+                  })
+                  .map(video => (
                 <div
                   key={video.id}
                   onClick={() => setSelectedVideo(video)}
@@ -666,6 +708,17 @@ function Home() {
                     relative
                     ${viewMode === 'list' ? 'w-40 flex-shrink-0 aspect-auto rounded' : 'aspect-video overflow-hidden rounded bg-gray-900'}
                   `}>
+                    <div className="absolute bottom-2 right-2">
+                      {videoStatus[video.id] === 'checking' && (
+                        <Badge className="bg-yellow-600 text-white text-xs">CHECK</Badge>
+                      )}
+                      {videoStatus[video.id] === 'ok' && (
+                        <Badge className="bg-green-600 text-white text-xs">OK</Badge>
+                      )}
+                      {videoStatus[video.id] === 'broken' && (
+                        <Badge className="bg-red-600 text-white text-xs">BROKEN</Badge>
+                      )}
+                    </div>
                     <img
                       src={video.thumbnailLink}
                       alt={video.title}
@@ -1411,6 +1464,20 @@ function Home() {
                   </SelectContent>
                 </Select>
               )}
+
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as 'all' | 'ok' | 'broken')}
+                >
+                  <SelectTrigger className="w-1/2 text-white text-center bg-black">
+                    <SelectValue placeholder="Video Status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black text-white">
+                    <SelectItem value="all">Check All</SelectItem>
+                    <SelectItem value="ok">Check Working</SelectItem>
+                    <SelectItem value="broken">Check Broken</SelectItem>
+                  </SelectContent>
+                </Select>
               {!isAuthenticated ? (
                 <Button
                   onClick={() => setIsPasswordDialogOpen(true)}
