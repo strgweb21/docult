@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Settings, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
@@ -660,7 +660,6 @@ function Home() {
               className="bg-white text-black hover:bg-gray-500 flex items-center gap-1 justify-center"
             >
               <Settings className="h-4 w-4" />
-              Settings
             </Button>
 
             {/* Search */}
@@ -1445,27 +1444,26 @@ function Home() {
                   </SelectContent>
                 </Select>
               )}
-                {/* Tombol Masuk / Keluar */}
-                {!isAuthenticated ? (
-                  <Button
-                    onClick={() => setIsPasswordDialogOpen(true)}
-                    className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
-                  >
-                    Masuk
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      setIsAuthenticated(false);
-                      sessionStorage.removeItem("admin_pass");
-                      setIsAddDialogOpen(false);
-                      alert("Berhasil keluar");
-                    }}
-                    className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
-                  >
-                    Keluar
-                  </Button>
-                )}
+              {!isAuthenticated ? (
+                <Button
+                  onClick={() => setIsPasswordDialogOpen(true)}
+                  className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
+                >
+                  <LogIn className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setIsAuthenticated(false);
+                    sessionStorage.removeItem("admin_pass");
+                    setIsAddDialogOpen(false);
+                    alert("Berhasil keluar");
+                  }}
+                  className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              )}
           </div>
         </DialogContent>
       </Dialog>
