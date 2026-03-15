@@ -81,18 +81,6 @@ function Home() {
     [hasMore, sort]
   );
 
-  const getCookie = (name: string) => {
-    if (typeof document === 'undefined') return '';
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return match ? decodeURIComponent(match[2]) : '';
-  };
-
-  const setCookie = (name: string, value: string, days = 365) => {
-    const d = new Date();
-    d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
-    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/';
-  };
-
   const fetchMeta = useCallback(async () => {
     try {
       const res = await fetch('/api/videos/meta', { cache: 'no-store' });
