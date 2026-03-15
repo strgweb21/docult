@@ -102,9 +102,6 @@ function Home() {
 
   const router = useRouter();
 
-  // -----------------
-  // Fetch Videos
-  // -----------------
   const fetchVideos = useCallback(
     async (page = 1, label = 'all', search = '', append = false) => {
       if (!hasMore && append) return;
@@ -133,9 +130,6 @@ function Home() {
     [hasMore, sort]
   );
 
-  // -----------------
-  // Cookie helpers
-  // -----------------
   const getCookie = (name: string) => {
     if (typeof document === 'undefined') return '';
     const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -148,9 +142,6 @@ function Home() {
     document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/';
   };
 
-  // -----------------
-  // Fetch Metadata
-  // -----------------
   const fetchMeta = useCallback(async () => {
     try {
       const res = await fetch('/api/videos/meta', { cache: 'no-store' });
@@ -169,9 +160,6 @@ function Home() {
     }
   }, []);
 
-  // -----------------
-  // Intersection Observer for Load More
-  // -----------------
   useEffect(() => {
     if (!loadMoreRef.current) return;
 
@@ -188,17 +176,11 @@ function Home() {
     return () => observer.disconnect();
   }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
 
-  // -----------------
-  // Load API Key
-  // -----------------
   useEffect(() => {
     const key = getCookie(`api_${provider}`);
     setTurbovipKey(key || '');
   }, [provider]);
 
-  // -----------------
-  // Initial fetch
-  // -----------------
   useEffect(() => {
     fetchVideos(1, selectedLabel, '');
   }, [sort, selectedLabel]);
@@ -207,7 +189,7 @@ function Home() {
     fetchMeta();
     fetchVideos(1, selectedLabel);
 
-    const savedPass = sessionStorage.getItem('admin_pass');
+    const savedPass = getCookie('admin_pass');
     if (savedPass) {
       const verifyStoredPassword = async () => {
         try {
@@ -230,9 +212,6 @@ function Home() {
     }
   }, []);
 
-  // -----------------
-  // Search debounce
-  // -----------------
   useEffect(() => {
     const handler = setTimeout(() => {
       setVideos([]);
@@ -244,9 +223,6 @@ function Home() {
     return () => clearTimeout(handler);
   }, [searchInput, selectedLabel]);
 
-  // -----------------
-  // Mobile detection
-  // -----------------
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -254,9 +230,6 @@ function Home() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // -----------------
-  // Password dialog handler
-  // -----------------
   const handlePasswordDialogClose = () => {
     setIsPasswordDialogOpen(false);
     setPassword('');
@@ -264,9 +237,6 @@ function Home() {
     setPendingAction(null);
   };
 
-  // -----------------
-  // Pagination & Label filter
-  // -----------------
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) fetchVideos(page, selectedLabel);
   };
@@ -279,9 +249,6 @@ function Home() {
     fetchVideos(1, label, searchInput, false);
   };
 
-  // -----------------
-  // Execute Add/Edit/Delete
-  // -----------------
   const executeAction = async (type: 'add' | 'edit' | 'delete', storedPassword: string) => {
     if (type === 'add') {
       const addResponse = await fetch('/api/videos', {
@@ -321,9 +288,6 @@ function Home() {
     }
   };
 
-  // -----------------
-  // Verify password
-  // -----------------
   const verifyPassword = async () => {
     try {
       const response = await fetch('/api/videos/verify-password', {
@@ -340,7 +304,7 @@ function Home() {
       setPasswordError('');
       setIsPasswordDialogOpen(false);
       setIsAuthenticated(true);
-      sessionStorage.setItem('admin_pass', password);
+      setCookie('admin_pass', password, 365);
 
       if (pendingAction) {
         if (pendingAction.type === 'add') {
@@ -371,9 +335,6 @@ function Home() {
     }
   };
 
-  // -----------------
-  // Labels
-  // -----------------
   const handleAddLabel = () => {
     if (!formData.newLabel.trim()) return;
     const newLabels = formData.newLabel
@@ -401,9 +362,6 @@ function Home() {
     setFormData((prev) => ({ ...prev, labels: prev.labels.filter((l) => l !== label) }));
   };
 
-  // -----------------
-  // Dialog Open Handlers
-  // -----------------
   const openAddDialog = () => {
     if (!isAuthenticated) {
       setPendingAction({ type: 'add' });
@@ -418,7 +376,7 @@ function Home() {
   const openSettingsDialog = () => setIsSettingsDialogOpen(true);
 
   const handleAddVideo = () => {
-    const saved = sessionStorage.getItem('admin_pass');
+    const saved = getCookie('admin_pass');
     if (saved) executeAction('add', saved);
     else {
       setActionType('add');
@@ -441,7 +399,7 @@ function Home() {
 
   const handleEditVideo = () => {
     if (!selectedVideo) return;
-    const saved = sessionStorage.getItem('admin_pass');
+    const saved = getCookie('admin_pass');
     if (saved) executeAction('edit', saved);
     else {
       setActionType('edit');
@@ -451,7 +409,7 @@ function Home() {
 
   const handleDeleteVideo = () => {
     if (!selectedVideo) return;
-    const saved = sessionStorage.getItem('admin_pass');
+    const saved = getCookie('admin_pass');
     if (saved) executeAction('delete', saved);
     else {
       setActionType('delete');
@@ -459,9 +417,6 @@ function Home() {
     }
   };
 
-  // -----------------
-  // Keyboard & overlay
-  // -----------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelectedVideo(null);
@@ -476,9 +431,6 @@ function Home() {
     if (e.target === e.currentTarget && selectedVideo) setSelectedVideo(null);
   };
 
-  // -----------------
-  // Turbo Sync
-  // -----------------
   const handleTurboSync = async () => {
     if (!turbovipKey) return;
     try {
@@ -503,9 +455,6 @@ function Home() {
     }
   };
 
-  // -----------------
-  // Utilities
-  // -----------------
   const maskApiKey = (key: string) => {
     if (key.length <= 8) return key;
     const visible = 6;
@@ -525,9 +474,6 @@ function Home() {
     setSort(sortOptions[nextIndex].key);
   };
 
-  // -----------------
-  // Video navigation
-  // -----------------
   const currentVideoIndex = useMemo(() => {
     return selectedVideo ? videos.findIndex((v) => v.id === selectedVideo.id) : -1;
   }, [selectedVideo, videos]);
@@ -834,26 +780,6 @@ function Home() {
           onClick={handleOverlayClick}
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-2"
         >
-          
-          {/* Panah Prev */}
-          {currentVideoIndex > 0 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); prevVideo(); }}
-              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
-          >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          )}
-
-          {/* Panah Next */}
-          {currentVideoIndex < videos.length - 1 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); nextVideo(); }}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          )}
           <div className="flex flex-col lg:flex-row items-center gap-6 max-w-full max-h-[90vh]">
             {/* Video Player */}
             <div
@@ -892,6 +818,26 @@ function Home() {
                 )}
               </div>
             </div>
+
+            {/* Panah Prev */}
+            {currentVideoIndex > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); prevVideo(); }}
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
+            >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Panah Next */}
+            {currentVideoIndex < videos.length - 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); nextVideo(); }}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
 
             {/* Video Info and Actions */}
             <div className="w-full lg:w-72 bg-black text-white flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
@@ -943,24 +889,26 @@ function Home() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                  onClick={(e) => {
-                  e.stopPropagation();
-                  
-                  if (!isAuthenticated) {
-                    setSelectedVideo(selectedVideo);
-                    setPendingAction({ type: 'edit', data: selectedVideo });
-                    setIsPasswordDialogOpen(true);
-                    return;
-                  }
-                  
-                  openEditDialog(selectedVideo);
-                }}
-                >
-                  Edit
-                </Button>
+                {isAuthenticated && (
+                  <Button
+                    variant="outline"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
+                    onClick={(e) => {
+                    e.stopPropagation();
+                    
+                    if (!isAuthenticated) {
+                      setSelectedVideo(selectedVideo);
+                      setPendingAction({ type: 'edit', data: selectedVideo });
+                      setIsPasswordDialogOpen(true);
+                      return;
+                    }
+                    
+                    openEditDialog(selectedVideo);
+                  }}
+                  >
+                    Edit
+                  </Button>
+                )}
                 {isAuthenticated && (
                   <Button
                     variant="outline"
@@ -1244,7 +1192,7 @@ function Home() {
               />
             </div>
             {/* LABELS */}
-            <div className="space-y-3">
+            <div className="space-y-1">
               <Label className="text-gray-300">Labels</Label>
               <div className="flex gap-2">
                 <Input
@@ -1295,8 +1243,8 @@ function Home() {
                         className={`cursor-pointer
                           ${
                             selected
-                              ? 'bg-white text-black'
-                              : 'bg-gray-500 text-white hover:bg-gray-700'
+                              ? 'bg-gray-800 text-white'
+                              : 'bg-white text-black hover:bg-gray-500'
                           }
                         `}
                       >
@@ -1455,7 +1403,7 @@ function Home() {
                 <Button
                   onClick={() => {
                     setIsAuthenticated(false);
-                    sessionStorage.removeItem("admin_pass");
+                    setCookie('admin_pass', '', -1);
                     setIsAddDialogOpen(false);
                     alert("Berhasil keluar");
                   }}
