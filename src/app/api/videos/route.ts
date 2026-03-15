@@ -37,10 +37,32 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Tambah parsing sort dari query
+    const sort = searchParams.get('sort'); // bisa 'title_asc', 'title_desc', 'created_asc', 'created_desc'
+
+    let orderBy: any = { createdAt: 'desc' }; // default
+
+    if (sort) {
+      switch (sort) {
+        case 'title_asc':
+          orderBy = { title: 'asc' };
+          break;
+        case 'title_desc':
+          orderBy = { title: 'desc' };
+          break;
+        case 'created_asc':
+          orderBy = { createdAt: 'asc' };
+          break;
+        case 'created_desc':
+          orderBy = { createdAt: 'desc' };
+          break;
+      }
+    }
+
     const [videos, total] = await Promise.all([
       db.video.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),

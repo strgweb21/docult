@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Download, ExternalLink, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Plus, Settings, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
@@ -52,24 +52,33 @@ function Home() {
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
   const [password, setPassword] = useState('');
-  const [turbovipKey, setTurbovipKey] = useState("")
-  const [syncLoading, setSyncLoading] = useState(false)
+  const [turbovipKey, setTurbovipKey] = useState('');
+  const [syncLoading, setSyncLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true); // apakah masih ada video untuk load
+  const [hasMore, setHasMore] = useState(true);
   const [passwordError, setPasswordError] = useState('');
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
-  const router = useRouter();
+
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sort, setSort] = useState<string>('created_desc');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
-  const [provider, setProvider] = useState<"turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me">("turbovip")
+  const [gridCols, setGridCols] = useState(4);
+  const [provider, setProvider] = useState<
+    'turbovip' | 'byse' | 'rpmshare' | 'streamp2p' | 'seekstreaming' | 'player4me'
+  >('turbovip');
+
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'delete';
@@ -86,10 +95,16 @@ function Home() {
     newLabel: '',
   });
 
+  // Refs
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Fetch videos
+  const router = useRouter();
+
+  // -----------------
+  // Fetch Videos
+  // -----------------
   const fetchVideos = useCallback(
     async (page = 1, label = 'all', search = '', append = false) => {
       if (!hasMore && append) return;
@@ -102,74 +117,49 @@ function Home() {
           limit: '20',
           ...(label !== 'all' && { label }),
           ...(search && { s: search }),
+          ...(sort && { sort }),
         });
 
         const res = await fetch(`/api/videos?${params}`);
         const data = await res.json();
 
-        setVideos(prev => append ? [...prev, ...(data.videos || [])] : (data.videos || []));
+        setVideos((prev) => (append ? [...prev, ...(data.videos || [])] : data.videos || []));
         setCurrentPage(page);
         setHasMore(data.pagination?.hasNextPage ?? false);
       } finally {
         setIsLoadingMore(false);
       }
     },
-    [hasMore]
+    [hasMore, sort]
   );
 
+  // -----------------
+  // Cookie helpers
+  // -----------------
   const getCookie = (name: string) => {
-    if (typeof document === "undefined") return "";
-
-    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-    return match ? decodeURIComponent(match[2]) : "";
+    if (typeof document === 'undefined') return '';
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : '';
   };
 
   const setCookie = (name: string, value: string, days = 365) => {
     const d = new Date();
     d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
-
-    document.cookie =
-      name +
-      "=" +
-      encodeURIComponent(value) +
-      ";expires=" +
-      d.toUTCString() +
-      ";path=/";
+    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/';
   };
 
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-          fetchVideos(currentPage + 1, selectedLabel, searchInput, true);
-        }
-      },
-      { rootMargin: '200px' }
-    );
-
-    observer.observe(loadMoreRef.current);
-
-    return () => observer.disconnect();
-  }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
-
+  // -----------------
+  // Fetch Metadata
+  // -----------------
   const fetchMeta = useCallback(async () => {
     try {
-      const res = await fetch('/api/videos/meta', {
-        cache: 'no-store',
-      });
-
+      const res = await fetch('/api/videos/meta', { cache: 'no-store' });
       if (!res.ok) throw new Error();
 
       const data = await res.json();
 
       const counts = new Map<string, number>();
-      data.labels.forEach((l: { label: string; count: number }) => {
-        counts.set(l.label, l.count);
-      });
+      data.labels.forEach((l: { label: string; count: number }) => counts.set(l.label, l.count));
 
       setLabelCounts(counts);
       setAllLabels(data.labels.map((l: any) => l.label));
@@ -179,20 +169,45 @@ function Home() {
     }
   }, []);
 
+  // -----------------
+  // Intersection Observer for Load More
+  // -----------------
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
+          fetchVideos(currentPage + 1, selectedLabel, searchInput, true);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
+
+  // -----------------
+  // Load API Key
+  // -----------------
   useEffect(() => {
     const key = getCookie(`api_${provider}`);
-    setTurbovipKey(key || "");
+    setTurbovipKey(key || '');
   }, [provider]);
 
-  // Initial load
-  // Di useEffect initial load:
-  // Initial load, hanya sekali saat component mount
+  // -----------------
+  // Initial fetch
+  // -----------------
   useEffect(() => {
-    fetchMeta();                    // 1x untuk labels + count
+    fetchVideos(1, selectedLabel, '');
+  }, [sort, selectedLabel]);
+
+  useEffect(() => {
+    fetchMeta();
     fetchVideos(1, selectedLabel);
 
-    // Cek apakah sudah login sebelumnya
-    const savedPass = sessionStorage.getItem("admin_pass");
+    const savedPass = sessionStorage.getItem('admin_pass');
     if (savedPass) {
       const verifyStoredPassword = async () => {
         try {
@@ -203,41 +218,45 @@ function Home() {
           });
           if (response.ok) setIsAuthenticated(true);
           else {
-            sessionStorage.removeItem("admin_pass");
+            sessionStorage.removeItem('admin_pass');
             setIsAuthenticated(false);
           }
         } catch {
-          sessionStorage.removeItem("admin_pass");
+          sessionStorage.removeItem('admin_pass');
           setIsAuthenticated(false);
         }
       };
       verifyStoredPassword();
     }
-  }, []);  // ⚠ kosong agar hanya run sekali
+  }, []);
 
+  // -----------------
+  // Search debounce
+  // -----------------
   useEffect(() => {
     const handler = setTimeout(() => {
       setVideos([]);
       setCurrentPage(1);
       setHasMore(true);
       fetchVideos(1, selectedLabel, searchInput, false);
-    }, 400); // debounce 400ms
+    }, 400);
 
     return () => clearTimeout(handler);
   }, [searchInput, selectedLabel]);
 
+  // -----------------
+  // Mobile detection
+  // -----------------
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
-
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Tambahkan handler ketika password dialog ditutup:
+  // -----------------
+  // Password dialog handler
+  // -----------------
   const handlePasswordDialogClose = () => {
     setIsPasswordDialogOpen(false);
     setPassword('');
@@ -245,63 +264,46 @@ function Home() {
     setPendingAction(null);
   };
 
-  // Handle page change
+  // -----------------
+  // Pagination & Label filter
+  // -----------------
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      fetchVideos(page, selectedLabel);
-    }
+    if (page >= 1 && page <= totalPages) fetchVideos(page, selectedLabel);
   };
 
-  // Handle label filter
   const handleLabelFilter = (label: string) => {
     setSelectedLabel(label);
     setCurrentPage(1);
     setHasMore(true);
     setVideos([]);
-
     fetchVideos(1, label, searchInput, false);
   };
 
-  const executeAction = async (
-    type: 'add' | 'edit' | 'delete',
-    storedPassword: string
-  ) => {
-
+  // -----------------
+  // Execute Add/Edit/Delete
+  // -----------------
+  const executeAction = async (type: 'add' | 'edit' | 'delete', storedPassword: string) => {
     if (type === 'add') {
       const addResponse = await fetch('/api/videos', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: storedPassword,
-        },
+        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
         body: JSON.stringify(formData),
       });
-
-      if (!addResponse.ok) throw new Error("Add failed");
-
+      if (!addResponse.ok) throw new Error('Add failed');
       setIsAddDialogOpen(false);
-
-      // Refresh semua video dan labels
-      await fetchMeta(); // untuk update allLabels
+      await fetchMeta();
       fetchVideos(1, 'all', searchInput, false);
     }
 
     if (type === 'edit' && selectedVideo) {
       const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: storedPassword,
-        },
+        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
         body: JSON.stringify(formData),
       });
-
-      if (!editResponse.ok) throw new Error("Edit failed");
-
+      if (!editResponse.ok) throw new Error('Edit failed');
       setIsEditDialogOpen(false);
       setSelectedVideo(null);
-
-      // Refresh allVideos dan fetch videos
       await fetchMeta();
       fetchVideos(currentPage, selectedLabel);
     }
@@ -309,31 +311,24 @@ function Home() {
     if (type === 'delete' && selectedVideo) {
       const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
         method: 'DELETE',
-        headers: {
-          authorization: storedPassword,
-        },
+        headers: { authorization: storedPassword },
       });
-
-      if (!deleteResponse.ok) throw new Error("Delete failed");
-
+      if (!deleteResponse.ok) throw new Error('Delete failed');
       setIsDeleteDialogOpen(false);
       setSelectedVideo(null);
-
-      // Refresh allVideos dan fetch videos
       await fetchMeta();
       fetchVideos(currentPage, selectedLabel);
     }
   };
 
-  // Verify password and execute action
-  // Ubah verifyPassword function:
+  // -----------------
+  // Verify password
+  // -----------------
   const verifyPassword = async () => {
     try {
       const response = await fetch('/api/videos/verify-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
 
@@ -342,26 +337,16 @@ function Home() {
         return;
       }
 
-      // Password benar
       setPasswordError('');
       setIsPasswordDialogOpen(false);
       setIsAuthenticated(true);
-      sessionStorage.setItem("admin_pass", password);
+      sessionStorage.setItem('admin_pass', password);
 
-      // Jalankan action yang tertunda
       if (pendingAction) {
         if (pendingAction.type === 'add') {
-          setFormData({
-            title: '',
-            embedLink: '',
-            thumbnailLink: '',
-            downloadLink: '',
-            labels: [],
-            newLabel: '',
-          });
+          setFormData({ title: '', embedLink: '', thumbnailLink: '', downloadLink: '', labels: [], newLabel: '' });
           setIsAddDialogOpen(true);
-        } 
-        else if (pendingAction.type === 'edit' && pendingAction.data) {
+        } else if (pendingAction.type === 'edit' && pendingAction.data) {
           setSelectedVideo(pendingAction.data);
           setFormData({
             title: pendingAction.data.title,
@@ -372,12 +357,10 @@ function Home() {
             newLabel: '',
           });
           setIsEditDialogOpen(true);
-        }
-        else if (pendingAction.type === 'delete' && pendingAction.data) {
+        } else if (pendingAction.type === 'delete' && pendingAction.data) {
           setSelectedVideo(pendingAction.data);
           setIsDeleteDialogOpen(true);
         }
-        
         setPendingAction(null);
       }
 
@@ -388,76 +371,61 @@ function Home() {
     }
   };
 
-  // Add label
+  // -----------------
+  // Labels
+  // -----------------
   const handleAddLabel = () => {
     if (!formData.newLabel.trim()) return;
-
     const newLabels = formData.newLabel
-      .split(/,|\n/)           // pisah pakai koma atau enter
-      .map(l => l.trim())
-      .filter(l => l.length);
+      .split(/,|\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length);
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      labels: Array.from(new Set([...prev.labels, ...newLabels])), // anti duplicate
+      labels: Array.from(new Set([...prev.labels, ...newLabels])),
       newLabel: '',
     }));
   };
 
   const toggleExistingLabel = (label: string) => {
-    setFormData(prev => {
-      const isSelected = prev.labels.includes(label);
-
-      return {
-        ...prev,
-        labels: isSelected
-          ? prev.labels.filter(l => l !== label) // remove
-          : [...prev.labels, label],             // add
-      };
-    });
-  };
-
-
-  // Remove label
-  const handleRemoveLabel = (label: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      labels: prev.labels.filter(l => l !== label),
+      labels: prev.labels.includes(label)
+        ? prev.labels.filter((l) => l !== label)
+        : [...prev.labels, label],
     }));
   };
 
-  // Open add dialog
+  const handleRemoveLabel = (label: string) => {
+    setFormData((prev) => ({ ...prev, labels: prev.labels.filter((l) => l !== label) }));
+  };
+
+  // -----------------
+  // Dialog Open Handlers
+  // -----------------
   const openAddDialog = () => {
     if (!isAuthenticated) {
       setPendingAction({ type: 'add' });
       setIsPasswordDialogOpen(true);
       return;
     }
-    
-    setFormData({
-      title: '',
-      embedLink: '',
-      thumbnailLink: '',
-      downloadLink: '',
-      labels: [],
-      newLabel: '',
-    });
+
+    setFormData({ title: '', embedLink: '', thumbnailLink: '', downloadLink: '', labels: [], newLabel: '' });
     setIsAddDialogOpen(true);
   };
 
-  // Handle add video
-  const handleAddVideo = () => {
-    const saved = sessionStorage.getItem("admin_pass");
+  const openSettingsDialog = () => setIsSettingsDialogOpen(true);
 
-    if (saved) {
-      executeAction('add', saved);
-    } else {
+  const handleAddVideo = () => {
+    const saved = sessionStorage.getItem('admin_pass');
+    if (saved) executeAction('add', saved);
+    else {
       setActionType('add');
       setIsPasswordDialogOpen(true);
     }
   };
 
-  // Open edit dialog
   const openEditDialog = (video: Video) => {
     setSelectedVideo(video);
     setFormData({
@@ -471,98 +439,107 @@ function Home() {
     setIsEditDialogOpen(true);
   };
 
-  // Handle edit video
   const handleEditVideo = () => {
     if (!selectedVideo) return;
-
-    const saved = sessionStorage.getItem("admin_pass");
-
-    if (saved) {
-      executeAction('edit', saved);
-    } else {
+    const saved = sessionStorage.getItem('admin_pass');
+    if (saved) executeAction('edit', saved);
+    else {
       setActionType('edit');
       setIsPasswordDialogOpen(true);
     }
   };
 
-  // Handle delete video
   const handleDeleteVideo = () => {
     if (!selectedVideo) return;
-
-    const saved = sessionStorage.getItem("admin_pass");
-
-    if (saved) {
-      executeAction('delete', saved);
-    } else {
+    const saved = sessionStorage.getItem('admin_pass');
+    if (saved) executeAction('delete', saved);
+    else {
       setActionType('delete');
       setIsPasswordDialogOpen(true);
     }
   };
 
-  // Handle keyboard events
+  // -----------------
+  // Keyboard & overlay
+  // -----------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedVideo) {
-        setSelectedVideo(null);
-      }
+      if (e.key === 'Escape') setSelectedVideo(null);
+      if (e.key === 'ArrowLeft') prevVideo();
+      if (e.key === 'ArrowRight') nextVideo();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedVideo]);
+  }, [selectedVideo, videos]);
 
-  // Handle click outside overlay
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && selectedVideo) {
-      setSelectedVideo(null);
-    }
+    if (e.target === e.currentTarget && selectedVideo) setSelectedVideo(null);
   };
 
+  // -----------------
+  // Turbo Sync
+  // -----------------
   const handleTurboSync = async () => {
-
-    if (!turbovipKey) return
-
+    if (!turbovipKey) return;
     try {
-
-      setSyncLoading(true)
-
+      setSyncLoading(true);
       const res = await fetch(`/api/${provider}/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          apiKey: turbovipKey
-        })
-      })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: turbovipKey }),
+      });
 
-      const data = await res.json()
-
+      const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Sync gagal")
-        return
+        alert(data.error || 'Sync gagal');
+        return;
       }
 
-      alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`)
-
-      fetchMeta()
-      fetchVideos(1, selectedLabel)
-
+      alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`);
+      fetchMeta();
+      fetchVideos(1, selectedLabel);
     } finally {
-      setSyncLoading(false)
+      setSyncLoading(false);
     }
-
-  }
-
-  const maskApiKey = (key: string) => {
-    if (key.length <= 8) return key;
-    
-    const visible = 6; // karakter awal yang terlihat
-    const masked = key.slice(visible).replace(/./g, "•");
-    
-    return key.slice(0, visible) + masked;
   };
 
+  // -----------------
+  // Utilities
+  // -----------------
+  const maskApiKey = (key: string) => {
+    if (key.length <= 8) return key;
+    const visible = 6;
+    return key.slice(0, visible) + key.slice(visible).replace(/./g, '•');
+  };
+
+  const sortOptions: { key: string; label: string }[] = [
+    { key: 'created_desc', label: 'Newest' },
+    { key: 'created_asc', label: 'Oldest' },
+    { key: 'title_asc', label: 'A-Z' },
+    { key: 'title_desc', label: 'Z-A' },
+  ];
+
+  const toggleSort = () => {
+    const currentIndex = sortOptions.findIndex((s) => s.key === sort);
+    const nextIndex = (currentIndex + 1) % sortOptions.length;
+    setSort(sortOptions[nextIndex].key);
+  };
+
+  // -----------------
+  // Video navigation
+  // -----------------
+  const currentVideoIndex = useMemo(() => {
+    return selectedVideo ? videos.findIndex((v) => v.id === selectedVideo.id) : -1;
+  }, [selectedVideo, videos]);
+
+  const prevVideo = () => {
+    if (currentVideoIndex > 0) setSelectedVideo(videos[currentVideoIndex - 1]);
+  };
+
+  const nextVideo = () => {
+    if (currentVideoIndex >= 0 && currentVideoIndex < videos.length - 1)
+      setSelectedVideo(videos[currentVideoIndex + 1]);
+  };
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
@@ -578,8 +555,6 @@ function Home() {
             {/* Search di tengah */}
             <div className="flex-1 flex justify-center">
               <div className="relative flex w-full max-w-2xl">
-
-                {/* INPUT */}
                 <div className="relative flex-1">
                   <Input
                     placeholder="Search by title..."
@@ -593,8 +568,8 @@ function Home() {
 
             {/* Filter + Add di kanan */}
             <div className="flex items-center gap-4">
-              {/* Filter */}
               <div className="flex items-center gap-2">
+                {/* Filter */}
                 <Select value={selectedLabel} onValueChange={handleLabelFilter}>
                   <SelectTrigger id="labelFilter" className="w-60 text-white">
                     <SelectValue placeholder="All Labels" />
@@ -603,33 +578,55 @@ function Home() {
                     <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
                     {Array.from(labelCounts.keys())
                       .sort((a, b) => a.localeCompare(b))
-                      .map(label => (
-                      <SelectItem key={label} value={label}>
-                        {label} ({labelCounts.get(label)})
-                      </SelectItem>
-                    ))}
+                      .map((label) => (
+                        <SelectItem key={label} value={label}>
+                          {label} ({labelCounts.get(label)})
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
-              </div>
 
-              {/* Add Video */}
-              <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
-                <Plus className="h-4 w-4" />
-              </Button>
-              
+                {/* Settings */}
+                <Button
+                  onClick={openSettingsDialog}
+                  className="bg-white text-black hover:bg-gray-500 flex items-center gap-1"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+
+                {/* Add Video – hanya muncul jika sudah login */}
+                {isAuthenticated && (
+                  <Button
+                    onClick={openAddDialog}
+                    className="bg-white text-black hover:bg-gray-500 flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Burger Menu untuk mobile di kanan */}
+          {/* Burger Menu untuk mobile */}
           <button
             className="text-white md:hidden"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isMobileMenuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               )}
             </svg>
           </button>
@@ -637,18 +634,18 @@ function Home() {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden mt-4 flex flex-col gap-4 bg-black p-4 rounded-lg">
+          <div className="md:hidden mt-4 grid grid-cols-2 gap-4 bg-black p-4 rounded-lg">
             {/* Filter */}
-            <div className="flex items-center gap-2">
+            <div>
               <Select value={selectedLabel} onValueChange={handleLabelFilter}>
                 <SelectTrigger id="labelFilterMobile" className="w-full text-white">
                   <SelectValue placeholder="All Labels" />
                 </SelectTrigger>
                 <SelectContent className="text-white bg-black">
-                    <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
-                    {Array.from(labelCounts.keys())
-                      .sort((a, b) => a.localeCompare(b))
-                      .map(label => (
+                  <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
+                  {Array.from(labelCounts.keys())
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((label) => (
                       <SelectItem key={label} value={label}>
                         {label} ({labelCounts.get(label)})
                       </SelectItem>
@@ -657,20 +654,34 @@ function Home() {
               </Select>
             </div>
 
+            {/* Settings */}
+            <Button
+              onClick={openSettingsDialog}
+              className="bg-white text-black hover:bg-gray-500 flex items-center gap-1 justify-center"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Button>
+
             {/* Search */}
-            <div className="relative">
-                  <Input
-                    placeholder="Search by title..."
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full pr-8 bg-black text-white"
-                  />
+            <div className="col-span-1">
+              <Input
+                placeholder="Search by title..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full pr-8 bg-black text-white"
+              />
             </div>
 
-            {/* Add Video */}
-            <Button onClick={openAddDialog} className="bg-white text-black hover:bg-gray-200 flex items-center gap-1">
-              <Plus className="h-4 w-4" />
-            </Button>
+            {/* Add Video / Masuk */}
+              {isAuthenticated && (
+                  <Button
+                    onClick={openAddDialog}
+                    className="bg-white text-black hover:bg-gray-500 flex items-center gap-1 justify-center"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
           </div>
         )}
       </header>
@@ -684,100 +695,127 @@ function Home() {
               <p>No videos found.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
-              {videos
-                .map(video => (
-                  <div
-                    key={video.id}
-                    onClick={() => setSelectedVideo(video)}
-                    className="cursor-pointer group"
-                  >
-                    {/* Thumbnail dengan label di atas kiri */}
-                    <div className="relative aspect-video overflow-hidden bg-gray-900 rounded">
-                      <img
-                        src={video.thumbnailLink}
-                        alt={video.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                        decoding="async"
-                      />
+            <div
+              className={`grid gap-4 grid-cols-2 lg:grid-cols-4${viewMode === 'grid' ? '' : 'grid-cols-1'}`}
+              style={{ gridTemplateColumns: viewMode === 'grid' ? window.innerWidth < 768 ? 'repeat(2, minmax(0, 1fr))' : `repeat(${gridCols}, minmax(0, 1fr))` : '1fr' }}
+            >
+              {videos.map(video => (
+              <div
+                key={video.id}
+                onClick={() => setSelectedVideo(video)}
+                className={`
+                  cursor-pointer group
+                  ${viewMode === 'list' ? 'flex gap-4 items-center mb-4' : ''}
+                `}
+              >
+                {/* Thumbnail dengan label di atas kiri */}
+                <div className={`
+                  relative
+                  ${viewMode === 'list' ? 'w-40 flex-shrink-0 aspect-auto rounded' : 'aspect-video overflow-hidden rounded bg-gray-900'}
+                `}>
+                  <img
+                    src={video.thumbnailLink}
+                    alt={video.title}
+                    className={`
+                      w-full h-full object-cover
+                      transition-transform duration-300
+                      group-hover:scale-105
+                    `}
+                    loading="lazy"
+                    decoding="async"
+                  />
 
-                      {/* Labels di atas kiri */}
-                      <div className="absolute top-2 left-2 flex gap-1 flex-wrap max-w-[90%]">
-                        {/* LABEL UTAMA — mobile & desktop */}
-                        {Array.isArray(video.labels) &&
-                        video.labels.slice(0,1).map(label => (
-                          <Badge
-                            key={label}
-                            variant="secondary"
-                            className="
-                              bg-black/60 text-white rounded
-                              text-[10px] px-0.5 py-0
-                              sm:text-xs sm:px-1 sm:py-0.5
-                            "
-                          >
-                            {label}
-                          </Badge>
-                        ))}
+                  {/* Labels di atas kiri */}
+                  <div className={`
+                    absolute top-2 left-2 flex gap-1 flex-wrap max-w-[90%]
+                  `}>
+                    {/* LABEL UTAMA */}
+                    {Array.isArray(video.labels) &&
+                      video.labels.slice(0, 1).map(label => (
+                        <Badge
+                          key={label}
+                          variant="secondary"
+                          className="
+                            bg-black/60 text-white rounded
+                            text-[10px] px-0.5 py-0
+                            sm:text-xs sm:px-1 sm:py-0.5
+                          "
+                        >
+                          {label}
+                        </Badge>
+                      ))}
 
-                        {/* LABEL KE-2 — desktop only */}
-                        {video.labels.length > 1 && (
-                          <Badge
-                            variant="secondary"
-                            className="
-                              hidden sm:inline-flex
-                              bg-black/60 text-white rounded
-                              text-xs px-1 py-0.5
-                            "
-                          >
-                            {video.labels[1]}
-                          </Badge>
-                        )}
+                    {/* LABEL KE-2 — desktop only */}
+                    {video.labels.length > 1 && (
+                      <Badge
+                        variant="secondary"
+                        className="
+                          hidden sm:inline-flex
+                          bg-black/60 text-white rounded
+                          text-xs px-1 py-0.5
+                        "
+                      >
+                        {video.labels[1]}
+                      </Badge>
+                    )}
 
-                        {/* +N — mobile */}
-                        {video.labels.length > 1 && (
-                          <Badge
-                            variant="secondary"
-                            className="
-                              sm:hidden
-                              bg-black/60 text-white rounded
-                              text-[10px] px-0.5 py-0
-                            "
-                          >
-                            +{video.labels.length - 1}
-                          </Badge>
-                        )}
+                    {/* +N — mobile */}
+                    {video.labels.length > 1 && (
+                      <Badge
+                        variant="secondary"
+                        className="
+                          sm:hidden
+                          bg-black/60 text-white rounded
+                          text-[10px] px-0.5 py-0
+                        "
+                      >
+                        +{video.labels.length - 1}
+                      </Badge>
+                    )}
 
-                        {/* +N — desktop */}
-                        {video.labels.length > 2 && (
-                          <Badge
-                            variant="secondary"
-                            className="
-                              hidden sm:inline-flex
-                              bg-black/60 text-white rounded
-                              text-xs px-1 py-0.5
-                            "
-                          >
-                            +{video.labels.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Overlay with play button */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
-                        <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </div>
-                    </div>
-
-                    {/* Title di bawah thumbnail */}
-                    <div className="mt-2">
-                      <h3 className="text-sm font-semibold text-white line-clamp-2">{video.title}</h3>
-                    </div>
+                    {/* +N — desktop */}
+                    {video.labels.length > 2 && (
+                      <Badge
+                        variant="secondary"
+                        className="
+                          hidden sm:inline-flex
+                          bg-black/60 text-white rounded
+                          text-xs px-1 py-0.5
+                        "
+                      >
+                        +{video.labels.length - 2}
+                      </Badge>
+                    )}
                   </div>
-                ))}
 
-              {/* Load More Trigger untuk Infinite Scroll */}
-              <div ref={loadMoreRef} className="col-span-full h-4"></div>
+                  {/* Overlay dengan tombol play */}
+                  <div className={`
+                    absolute inset-0 bg-black/0 group-hover:bg-black/40
+                    transition-colors duration-300 flex items-center justify-center
+                  `}>
+                    <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  </div>
+                </div>
+
+                {/* Title & Labels di list mode */}
+                <div className={viewMode === 'list' ? 'flex-1' : 'mt-2'}>
+                  <h3 className="text-sm font-semibold text-white line-clamp-2">{video.title}</h3>
+                  {viewMode === 'list' && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {video.labels.map(label => (
+                        <Badge key={label} variant="secondary" className="bg-black/60 text-white text-xs px-1 py-0.5 rounded">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Load More Trigger untuk Infinite Scroll */}
+            <div ref={loadMoreRef} className="col-span-full h-4"></div>
+
             </div>
           )}
 
@@ -797,7 +835,27 @@ function Home() {
           onClick={handleOverlayClick}
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-2"
         >
-          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 max-w-full">
+          
+          {/* Panah Prev */}
+          {currentVideoIndex > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); prevVideo(); }}
+              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
+          >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+
+          {/* Panah Next */}
+          {currentVideoIndex < videos.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); nextVideo(); }}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          )}
+          <div className="flex flex-col lg:flex-row items-center gap-6 max-w-full max-h-[90vh]">
             {/* Video Player */}
             <div
               className="relative bg-black w-full max-w-full"
@@ -865,8 +923,8 @@ function Home() {
                       size="sm"
                       className={
                         videoWidth === width
-                          ? 'bg-white text-black hover:bg-gray-200'
-                          : 'bg-transparent text-white border-gray-700 hover:bg-gray-300'
+                          ? 'bg-white text-black hover:bg-gray-500'
+                          : 'bg-transparent text-white border-gray-700 hover:bg-gray-500'
                       }
                     >
                       {width}px
@@ -877,7 +935,7 @@ function Home() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
                     onClick={() => setSelectedVideo(null)}
                   >
                     Close
@@ -888,7 +946,7 @@ function Home() {
               <div className="flex flex-col gap-2">
                 <Button
                   variant="outline"
-                  className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                  className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
                   onClick={(e) => {
                   e.stopPropagation();
                   
@@ -907,7 +965,7 @@ function Home() {
                 {isAuthenticated && (
                   <Button
                     variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedVideo(selectedVideo);
@@ -920,7 +978,7 @@ function Home() {
                 {selectedVideo.downloadLink && (
                   <Button
                     variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-300"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.open(selectedVideo.downloadLink, '_blank');
@@ -941,11 +999,10 @@ function Home() {
 
           {/* HEADER */}
           <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
-            <DialogTitle className="text-lg font-semibold">
+            <DialogTitle className="text-lg font-semibold text-center">
               Add Video
             </DialogTitle>
           </DialogHeader>
-          
           {/* BODY */}
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             {/* PROVIDER + API */}
@@ -958,10 +1015,9 @@ function Home() {
                   setProvider(v as "turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me")
                 }
               >
-                <SelectTrigger className="w-[140px] shrink-0 bg-black text-white border-gray-700">
+                <SelectTrigger className="w-[140px] shrink-0 bg-white text-black border-gray-700">
                   <SelectValue />
                 </SelectTrigger>
-
                 <SelectContent className="bg-black text-white border-gray-700">
                   <SelectItem value="turbovip">TurboVip</SelectItem>
                   <SelectItem value="byse">BYSE</SelectItem>
@@ -971,8 +1027,6 @@ function Home() {
                   <SelectItem value="player4me">Player4Me</SelectItem>
                 </SelectContent>
               </Select>
-
-
               {/* API KEY INPUT (AUTO WIDTH / CLIP) */}
               <div className="flex-1 min-w-0">
                 <Input
@@ -990,19 +1044,16 @@ function Home() {
                   className="w-full bg-black text-white border-gray-700"
                 />
               </div>
-
-
               {/* SYNC BUTTON */}
               <Button
                 onClick={handleTurboSync}
                 disabled={syncLoading || !turbovipKey}
-                className="shrink-0 bg-white text-black hover:bg-gray-300"
+                className="shrink-0 bg-white text-black hover:bg-gray-500"
               >
                 {syncLoading ? "Syncing..." : "Sync"}
               </Button>
 
             </div>
-
             {/* TITLE */}
             <div className="space-y-1">
               <Label className="text-gray-300">Title *</Label>
@@ -1013,8 +1064,6 @@ function Home() {
                 className="bg-black text-white border-gray-700"
               />
             </div>
-
-
             {/* EMBED */}
             <div className="space-y-1">
               <Label className="text-gray-300">Embed Link *</Label>
@@ -1025,8 +1074,6 @@ function Home() {
                 className="bg-black text-white border-gray-700"
               />
             </div>
-
-
             {/* THUMBNAIL */}
             <div className="space-y-1">
               <Label className="text-gray-300">Thumbnail Link *</Label>
@@ -1037,8 +1084,6 @@ function Home() {
                 className="bg-black text-white border-gray-700"
               />
             </div>
-
-
             {/* DOWNLOAD */}
             <div className="space-y-1">
               <Label className="text-gray-300">Download Link</Label>
@@ -1049,10 +1094,8 @@ function Home() {
                 className="bg-black text-white border-gray-700"
               />
             </div>
-
-
             {/* LABELS */}
-            <div className="space-y-3">
+            <div className="space-y-1">
 
               <Label className="text-gray-300">Labels</Label>
 
@@ -1068,21 +1111,16 @@ function Home() {
                 <Button
                   type="button"
                   onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-300"
+                  className="bg-white text-black hover:bg-gray-500"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-
-
               {/* SELECTED LABELS */}
               <div className="flex flex-wrap gap-2">
-
                 {formData.labels.map(label => (
                   <Badge key={label} className="bg-white text-black">
-
                     {label}
-
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
@@ -1090,26 +1128,17 @@ function Home() {
                     >
                       <X className="h-3 w-3"/>
                     </button>
-
                   </Badge>
                 ))}
-
               </div>
-
-
               {/* EXISTING LABELS */}
-
               <div>
                 <p className="text-sm text-gray-400 mb-2">
                   Existing labels
                 </p>
-
                 <div className="flex flex-wrap gap-2">
-
                   {allLabels.map(label => {
-
                     const selected = formData.labels.includes(label)
-
                     return (
                       <Badge
                         key={label}
@@ -1117,8 +1146,8 @@ function Home() {
                         className={`cursor-pointer
                           ${
                             selected
-                            ? 'bg-white text-black'
-                            : 'bg-gray-800 text-white hover:bg-gray-700'
+                            ? 'bg-gray-800 text-white'
+                            : 'bg-white text-black hover:bg-gray-500'
                           }
                         `}
                       >
@@ -1126,37 +1155,27 @@ function Home() {
                       </Badge>
                     )
                   })}
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
-
-
           {/* FOOTER */}
           <div className="flex justify-end gap-3">
-
             <Button
               variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-800"
+              className="border-gray-700 text-black hover:bg-gray-500"
               onClick={() => setIsAddDialogOpen(false)}
             >
               Cancel
             </Button>
-
             <Button
               onClick={handleAddVideo}
               disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-              className="bg-white text-black hover:bg-gray-300"
+              className="bg-white text-black hover:bg-gray-500"
             >
               Add Video
             </Button>
-
           </div>
-
         </DialogContent>
       </Dialog>
 
@@ -1166,7 +1185,6 @@ function Home() {
           className="max-w-2xl max-h-[90vh] flex flex-col bg-black text-white border border-gray-800"
           zIndex={200}
         >
-
           {/* HEADER */}
           <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
             <DialogTitle className="text-lg font-semibold">
@@ -1226,12 +1244,9 @@ function Home() {
                 className="bg-black text-white border-gray-700"
               />
             </div>
-
             {/* LABELS */}
             <div className="space-y-3">
-
               <Label className="text-gray-300">Labels</Label>
-
               <div className="flex gap-2">
                 <Input
                   value={formData.newLabel}
@@ -1242,11 +1257,10 @@ function Home() {
                   placeholder="Add label"
                   className="bg-black text-white border-gray-700"
                 />
-
                 <Button
                   type="button"
                   onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-300"
+                  className="bg-white text-black hover:bg-gray-500"
                 >
                   <Plus className="h-4 w-4"/>
                 </Button>
@@ -1256,9 +1270,7 @@ function Home() {
               <div className="flex flex-wrap gap-2">
                 {formData.labels.map(label => (
                   <Badge key={label} className="bg-white text-black">
-
                     {label}
-
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
@@ -1266,24 +1278,17 @@ function Home() {
                     >
                       <X className="h-3 w-3"/>
                     </button>
-
                   </Badge>
                 ))}
               </div>
-
               {/* EXISTING LABELS */}
               <div>
-
                 <p className="text-sm text-gray-400 mb-2">
                   Existing labels
                 </p>
-
                 <div className="flex flex-wrap gap-2">
-
                   {allLabels.map(label => {
-
                     const selected = formData.labels.includes(label)
-
                     return (
                       <Badge
                         key={label}
@@ -1292,7 +1297,7 @@ function Home() {
                           ${
                             selected
                               ? 'bg-white text-black'
-                              : 'bg-gray-800 text-white hover:bg-gray-700'
+                              : 'bg-gray-500 text-white hover:bg-gray-700'
                           }
                         `}
                       >
@@ -1300,36 +1305,28 @@ function Home() {
                       </Badge>
                     )
                   })}
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
 
           {/* FOOTER */}
           <div className="border-t border-gray-800 px-6 py-4 flex justify-end gap-3">
-
             <Button
               variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-800"
+              className="border-gray-700 text-black hover:bg-gray-500"
               onClick={() => setIsEditDialogOpen(false)}
             >
               Cancel
             </Button>
-
             <Button
               onClick={handleEditVideo}
               disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-              className="bg-white text-black hover:bg-gray-300"
+              className="bg-white text-black hover:bg-gray-500"
             >
               Save Changes
             </Button>
-
           </div>
-
         </DialogContent>
       </Dialog>
 
@@ -1339,35 +1336,28 @@ function Home() {
           className="bg-black text-white border border-gray-800"
           zIndex={200}
         >
-
           <DialogHeader>
             <DialogTitle>Confirm Delete</DialogTitle>
           </DialogHeader>
-
           <p className="text-gray-300">
             Are you sure you want to delete this video?
             This action cannot be undone.
           </p>
-
           <div className="flex gap-2 justify-end pt-4">
-
             <Button
               variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-800"
+              className="border-gray-700 text-black hover:bg-gray-500"
               onClick={() => setIsDeleteDialogOpen(false)}
             >
               Cancel
             </Button>
-
             <Button
               className="bg-red-700 text-white hover:bg-red-600"
               onClick={handleDeleteVideo}
             >
               Delete
             </Button>
-
           </div>
-
         </DialogContent>
       </Dialog>
 
@@ -1377,13 +1367,10 @@ function Home() {
           className="bg-black text-white border border-gray-800"
           zIndex={200}
         >
-
-          <DialogHeader>
-            <DialogTitle>Enter Password</DialogTitle>
+          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
+            <DialogTitle className="text-lg font-semibold text-center">Enter Password</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4">
-
             <Input
               id="password"
               type="password"
@@ -1394,18 +1381,15 @@ function Home() {
               placeholder="Password..."
               className="bg-black text-white border-gray-700"
             />
-
             {passwordError && (
               <p className="text-sm text-red-500">
                 {passwordError}
               </p>
             )}
-
             <div className="flex gap-2 justify-end">
-
               <Button
                 variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-800"
+                className="border-gray-700 text-black hover:bg-gray-500"
                 onClick={handlePasswordDialogClose}
               >
                 Cancel
@@ -1413,15 +1397,76 @@ function Home() {
 
               <Button
                 onClick={verifyPassword}
-                className="bg-white text-black hover:bg-gray-300"
+                className="bg-white text-black hover:bg-gray-500"
               >
                 Authenticate
               </Button>
-
             </div>
-
           </div>
+        </DialogContent>
+      </Dialog>
 
+      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+        <DialogContent className="max-w-md bg-black text-white border border-gray-800">
+          
+          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
+            <DialogTitle className="text-lg font-semibold text-center">Settings</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-4 w-full">
+            {/* Sort Button full width */}
+            <Button
+              onClick={toggleSort}
+              className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
+            >
+              {sortOptions.find(s => s.key === sort)?.label}
+            </Button>
+
+            {/* View Mode Toggle */}
+            <Button
+              onClick={() => setViewMode(prev => (prev === 'grid' ? 'list' : 'grid'))}
+              className="flex items-center justify-center gap-1 bg-white text-black text-center hover:bg-gray-500 px-2 py-2 w-1/2"
+            >
+              {viewMode === 'grid' ? 'Grid View' : 'List View'}
+            </Button>
+
+              {/* Grid Columns Selector (only if grid view) */}
+              {viewMode === 'grid' && (
+                <Select value={gridCols.toString()} onValueChange={(v) => setGridCols(Number(v))}>
+                  <SelectTrigger className="w-1/2 text-white text-center bg-black">
+                    <SelectValue placeholder="Columns" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black text-center text-white">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n} Columns
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+                {/* Tombol Masuk / Keluar */}
+                {!isAuthenticated ? (
+                  <Button
+                    onClick={() => setIsPasswordDialogOpen(true)}
+                    className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
+                  >
+                    Masuk
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      setIsAuthenticated(false);
+                      sessionStorage.removeItem("admin_pass");
+                      setIsAddDialogOpen(false);
+                      alert("Berhasil keluar");
+                    }}
+                    className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
+                  >
+                    Keluar
+                  </Button>
+                )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
