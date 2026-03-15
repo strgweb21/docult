@@ -133,29 +133,68 @@ function Home() {
   );
 
   const checkVideoLink = useCallback(async (video: Video) => {
-    try {
-      setVideoStatus(prev => ({ ...prev, [video.id]: 'checking' }));
+    // Set status checking
+    setVideoStatus(prev => ({ ...prev, [video.id]: 'checking' }));
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+    const url = video.embedLink;
+    // Deteksi apakah ini berkas video langsung (mp4, m3u8, dll)
+    const isVideoFile = /\.(mp4|m3u8|ts|webm|ogg|mov|mkv)$/i.test(url.split('?')[0].split('#')[0]);
 
-      const res = await fetch(video.embedLink, {
-        method: 'HEAD',
-        mode: 'no-cors',
-        signal: controller.signal,
+    if (isVideoFile) {
+      // Gunakan elemen video untuk menguji aksesibilitas
+      return new Promise<void>((resolve) => {
+        const videoEl = document.createElement('video');
+        videoEl.preload = 'metadata';
+        videoEl.src = url;
+        // Set crossorigin agar tidak terkendala credentials
+        videoEl.crossOrigin = 'anonymous';
+
+        const timeout = setTimeout(() => {
+          cleanup();
+          setVideoStatus(prev => ({ ...prev, [video.id]: 'broken' }));
+          resolve();
+        }, 10000); // timeout 10 detik
+
+        const onSuccess = () => {
+          clearTimeout(timeout);
+          cleanup();
+          setVideoStatus(prev => ({ ...prev, [video.id]: 'ok' }));
+          resolve();
+        };
+
+        const onError = () => {
+          clearTimeout(timeout);
+          cleanup();
+          setVideoStatus(prev => ({ ...prev, [video.id]: 'broken' }));
+          resolve();
+        };
+
+        const cleanup = () => {
+          videoEl.removeEventListener('loadedmetadata', onSuccess);
+          videoEl.removeEventListener('error', onError);
+          videoEl.src = '';
+          videoEl.load();
+        };
+
+        videoEl.addEventListener('loadedmetadata', onSuccess);
+        videoEl.addEventListener('error', onError);
       });
-
-      clearTimeout(timeout);
-
-      setVideoStatus(prev => ({
-        ...prev,
-        [video.id]: res ? 'ok' : 'broken'
-      }));
-    } catch {
-      setVideoStatus(prev => ({
-        ...prev,
-        [video.id]: 'broken'
-      }));
+    } else {
+      // Fallback ke metode lama (fetch HEAD dengan mode no-cors)
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        await fetch(url, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        // Jika fetch tidak throw, anggap OK (walaupun tidak bisa lihat status HTTP)
+        setVideoStatus(prev => ({ ...prev, [video.id]: 'ok' }));
+      } catch {
+        setVideoStatus(prev => ({ ...prev, [video.id]: 'broken' }));
+      }
     }
   }, []);
 
