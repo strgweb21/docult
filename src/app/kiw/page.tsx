@@ -136,28 +136,58 @@ function Home() {
     try {
       setVideoStatus(prev => ({ ...prev, [video.id]: 'checking' }));
 
+      // 1. Server-side check
+      const res = await fetch('/api/check-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: video.embedLink }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        // API itself failed – fallback to old client-side check
+        await fallbackClientCheck(video);
+        return;
+      }
+
+      // 2. Interpret server result
+      if (data.ok) {
+        setVideoStatus(prev => ({ ...prev, [video.id]: 'ok' }));
+      } else {
+        // Server says broken – but if it's a 403, we don't fully trust it
+        if (data.status === 403) {
+          // Fallback to client-side check
+          await fallbackClientCheck(video);
+        } else {
+          // Definitely broken (404, 410, etc.)
+          setVideoStatus(prev => ({ ...prev, [video.id]: 'broken' }));
+        }
+      }
+    } catch (error) {
+      // Network error – fallback to client-side check
+      await fallbackClientCheck(video);
+    }
+  }, []);
+
+  const fallbackClientCheck = async (video: Video) => {
+    try {
+      // Old method: no-cors HEAD
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(video.embedLink, {
+      await fetch(video.embedLink, {
         method: 'HEAD',
         mode: 'no-cors',
         signal: controller.signal,
       });
 
       clearTimeout(timeout);
-
-      setVideoStatus(prev => ({
-        ...prev,
-        [video.id]: res ? 'ok' : 'broken'
-      }));
+      // If fetch didn't throw, we assume it's ok (opaque response)
+      setVideoStatus(prev => ({ ...prev, [video.id]: 'ok' }));
     } catch {
-      setVideoStatus(prev => ({
-        ...prev,
-        [video.id]: 'broken'
-      }));
+      setVideoStatus(prev => ({ ...prev, [video.id]: 'broken' }));
     }
-  }, []);
+  };
 
   const getCookie = (name: string) => {
     if (typeof document === 'undefined') return '';
