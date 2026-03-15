@@ -5,11 +5,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut} from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Settings, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Video {
   id: string;
@@ -18,18 +16,6 @@ interface Video {
   thumbnailLink: string;
   downloadLink: string;
   labels: string[];
-}
-
-interface ApiResponse {
-  videos: Video[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
 }
 
 import { Suspense } from "react";
@@ -44,63 +30,28 @@ export default function Page() {
 
 function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [allLabels, setAllLabels] = useState<string[]>([]);
   const [labelCounts, setLabelCounts] = useState<Map<string, number>>(new Map());
   const [totalVideos, setTotalVideos] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  const [password, setPassword] = useState('');
-  const [turbovipKey, setTurbovipKey] = useState('');
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [passwordError, setPasswordError] = useState('');
-  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState<string>('created_desc');
-  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [gridCols, setGridCols] = useState(4);
-  const [provider, setProvider] = useState<
-    'turbovip' | 'byse' | 'rpmshare' | 'streamp2p' | 'seekstreaming' | 'player4me'
-  >('turbovip');
-
-  const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
-  const [pendingAction, setPendingAction] = useState<{
-    type: 'add' | 'edit' | 'delete';
-    data?: Video | null;
-  } | null>(null);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    embedLink: '',
-    thumbnailLink: '',
-    downloadLink: '',
-    labels: [] as string[],
-    newLabel: '',
-  });
-
+  
   // Refs
   const overlayRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  const router = useRouter();
 
   const fetchVideos = useCallback(
     async (page = 1, label = 'all', search = '', append = false) => {
@@ -153,7 +104,6 @@ function Home() {
       data.labels.forEach((l: { label: string; count: number }) => counts.set(l.label, l.count));
 
       setLabelCounts(counts);
-      setAllLabels(data.labels.map((l: any) => l.label));
       setTotalVideos(data.totalVideos);
     } catch (err) {
       console.error(err);
@@ -177,41 +127,13 @@ function Home() {
   }, [fetchVideos, isLoadingMore, hasMore, currentPage, selectedLabel]);
 
   useEffect(() => {
-    const key = getCookie(`api_${provider}`);
-    setTurbovipKey(key || '');
-  }, [provider]);
-
-  useEffect(() => {
     fetchVideos(1, selectedLabel, '');
   }, [sort, selectedLabel]);
 
   useEffect(() => {
     fetchMeta();
-    fetchVideos(1, selectedLabel);
-
-    const savedPass = getCookie('admin_pass');
-    if (savedPass) {
-      const verifyStoredPassword = async () => {
-        try {
-          const response = await fetch('/api/videos/verify-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: savedPass }),
-          });
-          if (response.ok) setIsAuthenticated(true);
-          else {
-            sessionStorage.removeItem('admin_pass');
-            setIsAuthenticated(false);
-          }
-        } catch {
-          sessionStorage.removeItem('admin_pass');
-          setIsAuthenticated(false);
-        }
-      };
-      verifyStoredPassword();
-    }
   }, []);
-
+  
   useEffect(() => {
     const handler = setTimeout(() => {
       setVideos([]);
@@ -230,17 +152,6 @@ function Home() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handlePasswordDialogClose = () => {
-    setIsPasswordDialogOpen(false);
-    setPassword('');
-    setPasswordError('');
-    setPendingAction(null);
-  };
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) fetchVideos(page, selectedLabel);
-  };
-
   const handleLabelFilter = (label: string) => {
     setSelectedLabel(label);
     setCurrentPage(1);
@@ -249,173 +160,7 @@ function Home() {
     fetchVideos(1, label, searchInput, false);
   };
 
-  const executeAction = async (type: 'add' | 'edit' | 'delete', storedPassword: string) => {
-    if (type === 'add') {
-      const addResponse = await fetch('/api/videos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
-        body: JSON.stringify(formData),
-      });
-      if (!addResponse.ok) throw new Error('Add failed');
-      setIsAddDialogOpen(false);
-      await fetchMeta();
-      fetchVideos(1, 'all', searchInput, false);
-    }
-
-    if (type === 'edit' && selectedVideo) {
-      const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
-        body: JSON.stringify(formData),
-      });
-      if (!editResponse.ok) throw new Error('Edit failed');
-      setIsEditDialogOpen(false);
-      setSelectedVideo(null);
-      await fetchMeta();
-      fetchVideos(currentPage, selectedLabel);
-    }
-
-    if (type === 'delete' && selectedVideo) {
-      const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-        method: 'DELETE',
-        headers: { authorization: storedPassword },
-      });
-      if (!deleteResponse.ok) throw new Error('Delete failed');
-      setIsDeleteDialogOpen(false);
-      setSelectedVideo(null);
-      await fetchMeta();
-      fetchVideos(currentPage, selectedLabel);
-    }
-  };
-
-  const verifyPassword = async () => {
-    try {
-      const response = await fetch('/api/videos/verify-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!response.ok) {
-        setPasswordError('Invalid password');
-        return;
-      }
-
-      setPasswordError('');
-      setIsPasswordDialogOpen(false);
-      setIsAuthenticated(true);
-      setCookie('admin_pass', password, 365);
-
-      if (pendingAction) {
-        if (pendingAction.type === 'add') {
-          setFormData({ title: '', embedLink: '', thumbnailLink: '', downloadLink: '', labels: [], newLabel: '' });
-          setIsAddDialogOpen(true);
-        } else if (pendingAction.type === 'edit' && pendingAction.data) {
-          setSelectedVideo(pendingAction.data);
-          setFormData({
-            title: pendingAction.data.title,
-            embedLink: pendingAction.data.embedLink,
-            thumbnailLink: pendingAction.data.thumbnailLink,
-            downloadLink: pendingAction.data.downloadLink,
-            labels: [...pendingAction.data.labels],
-            newLabel: '',
-          });
-          setIsEditDialogOpen(true);
-        } else if (pendingAction.type === 'delete' && pendingAction.data) {
-          setSelectedVideo(pendingAction.data);
-          setIsDeleteDialogOpen(true);
-        }
-        setPendingAction(null);
-      }
-
-      setPassword('');
-    } catch (err) {
-      console.error(err);
-      setPasswordError('Invalid password');
-    }
-  };
-
-  const handleAddLabel = () => {
-    if (!formData.newLabel.trim()) return;
-    const newLabels = formData.newLabel
-      .split(/,|\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length);
-
-    setFormData((prev) => ({
-      ...prev,
-      labels: Array.from(new Set([...prev.labels, ...newLabels])),
-      newLabel: '',
-    }));
-  };
-
-  const toggleExistingLabel = (label: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      labels: prev.labels.includes(label)
-        ? prev.labels.filter((l) => l !== label)
-        : [...prev.labels, label],
-    }));
-  };
-
-  const handleRemoveLabel = (label: string) => {
-    setFormData((prev) => ({ ...prev, labels: prev.labels.filter((l) => l !== label) }));
-  };
-
-  const openAddDialog = () => {
-    if (!isAuthenticated) {
-      setPendingAction({ type: 'add' });
-      setIsPasswordDialogOpen(true);
-      return;
-    }
-
-    setFormData({ title: '', embedLink: '', thumbnailLink: '', downloadLink: '', labels: [], newLabel: '' });
-    setIsAddDialogOpen(true);
-  };
-
   const openSettingsDialog = () => setIsSettingsDialogOpen(true);
-
-  const handleAddVideo = () => {
-    const saved = getCookie('admin_pass');
-    if (saved) executeAction('add', saved);
-    else {
-      setActionType('add');
-      setIsPasswordDialogOpen(true);
-    }
-  };
-
-  const openEditDialog = (video: Video) => {
-    setSelectedVideo(video);
-    setFormData({
-      title: video.title,
-      embedLink: video.embedLink,
-      thumbnailLink: video.thumbnailLink,
-      downloadLink: video.downloadLink,
-      labels: [...video.labels],
-      newLabel: '',
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleEditVideo = () => {
-    if (!selectedVideo) return;
-    const saved = getCookie('admin_pass');
-    if (saved) executeAction('edit', saved);
-    else {
-      setActionType('edit');
-      setIsPasswordDialogOpen(true);
-    }
-  };
-
-  const handleDeleteVideo = () => {
-    if (!selectedVideo) return;
-    const saved = getCookie('admin_pass');
-    if (saved) executeAction('delete', saved);
-    else {
-      setActionType('delete');
-      setIsPasswordDialogOpen(true);
-    }
-  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -429,36 +174,6 @@ function Home() {
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && selectedVideo) setSelectedVideo(null);
-  };
-
-  const handleTurboSync = async () => {
-    if (!turbovipKey) return;
-    try {
-      setSyncLoading(true);
-      const res = await fetch(`/api/${provider}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: turbovipKey }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Sync gagal');
-        return;
-      }
-
-      alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`);
-      fetchMeta();
-      fetchVideos(1, selectedLabel);
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  const maskApiKey = (key: string) => {
-    if (key.length <= 8) return key;
-    const visible = 6;
-    return key.slice(0, visible) + key.slice(visible).replace(/./g, '•');
   };
 
   const sortOptions: { key: string; label: string }[] = [
@@ -539,16 +254,6 @@ function Home() {
                 >
                   <Settings className="h-4 w-4" />
                 </Button>
-
-                {/* Add Video – hanya muncul jika sudah login */}
-                {isAuthenticated && (
-                  <Button
-                    onClick={openAddDialog}
-                    className="bg-white text-black hover:bg-gray-500 flex items-center gap-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             </div>
           </div>
@@ -617,16 +322,6 @@ function Home() {
                 className="w-full pr-8 bg-black text-white"
               />
             </div>
-
-            {/* Add Video / Masuk */}
-              {isAuthenticated && (
-                  <Button
-                    onClick={openAddDialog}
-                    className="bg-white text-black hover:bg-gray-500 flex items-center gap-1 justify-center"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
           </div>
         )}
       </header>
@@ -887,471 +582,10 @@ function Home() {
                   </Button>
                 </div>
               </div>
-
-              <div className="flex flex-col gap-2">
-                {isAuthenticated && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                    e.stopPropagation();
-                    
-                    if (!isAuthenticated) {
-                      setSelectedVideo(selectedVideo);
-                      setPendingAction({ type: 'edit', data: selectedVideo });
-                      setIsPasswordDialogOpen(true);
-                      return;
-                    }
-                    
-                    openEditDialog(selectedVideo);
-                  }}
-                  >
-                    Edit
-                  </Button>
-                )}
-                {isAuthenticated && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedVideo(selectedVideo);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                {selectedVideo.downloadLink && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(selectedVideo.downloadLink, '_blank');
-                    }}
-                  >
-                    Download
-                  </Button>
-                )}
-              </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* Add Video Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col bg-black text-white border border-gray-800">
-
-          {/* HEADER */}
-          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
-            <DialogTitle className="text-lg font-semibold text-center">
-              Add Video
-            </DialogTitle>
-          </DialogHeader>
-          {/* BODY */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-            {/* PROVIDER + API */}
-            <div className="flex items-center gap-3 w-full">
-
-              {/* PROVIDER */}
-              <Select
-                value={provider}
-                onValueChange={(v) =>
-                  setProvider(v as "turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me")
-                }
-              >
-                <SelectTrigger className="w-[140px] shrink-0 bg-white text-black border-gray-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-black text-white border-gray-700">
-                  <SelectItem value="turbovip">TurboVip</SelectItem>
-                  <SelectItem value="byse">BYSE</SelectItem>
-                  <SelectItem value="rpmshare">RPMShare</SelectItem>
-                  <SelectItem value="streamp2p">StreamP2P</SelectItem>
-                  <SelectItem value="seekstreaming">SeekStreaming</SelectItem>
-                  <SelectItem value="player4me">Player4Me</SelectItem>
-                </SelectContent>
-              </Select>
-              {/* API KEY INPUT (AUTO WIDTH / CLIP) */}
-              <div className="flex-1 min-w-0">
-                <Input
-                  placeholder="API Key"
-                  value={isEditingApiKey ? turbovipKey : maskApiKey(turbovipKey)}
-                  onFocus={() => setIsEditingApiKey(true)}
-                  onBlur={() => setIsEditingApiKey(false)}
-                  onChange={(e) => {
-                    const value = e.target.value;
-
-                    setTurbovipKey(value);
-
-                    setCookie(`api_${provider}`, value);
-                  }}
-                  className="w-full bg-black text-white border-gray-700"
-                />
-              </div>
-              {/* SYNC BUTTON */}
-              <Button
-                onClick={handleTurboSync}
-                disabled={syncLoading || !turbovipKey}
-                className="shrink-0 bg-white text-black hover:bg-gray-500"
-              >
-                {syncLoading ? "Syncing..." : "Sync"}
-              </Button>
-
-            </div>
-            {/* TITLE */}
-            <div className="space-y-1">
-              <Label className="text-gray-300">Title *</Label>
-              <Input
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Enter video title"
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-            {/* EMBED */}
-            <div className="space-y-1">
-              <Label className="text-gray-300">Embed Link *</Label>
-              <Input
-                value={formData.embedLink}
-                onChange={(e) => setFormData(prev => ({ ...prev, embedLink: e.target.value }))}
-                placeholder="https://example.com/video.mp4"
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-            {/* THUMBNAIL */}
-            <div className="space-y-1">
-              <Label className="text-gray-300">Thumbnail Link *</Label>
-              <Input
-                value={formData.thumbnailLink}
-                onChange={(e) => setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))}
-                placeholder="https://example.com/thumbnail.jpg"
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-            {/* DOWNLOAD */}
-            <div className="space-y-1">
-              <Label className="text-gray-300">Download Link</Label>
-              <Input
-                value={formData.downloadLink}
-                onChange={(e) => setFormData(prev => ({ ...prev, downloadLink: e.target.value }))}
-                placeholder="Optional"
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-            {/* LABELS */}
-            <div className="space-y-1">
-
-              <Label className="text-gray-300">Labels</Label>
-
-              <div className="flex gap-2">
-                <Input
-                  value={formData.newLabel}
-                  onChange={(e) => setFormData(prev => ({ ...prev, newLabel: e.target.value }))}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
-                  placeholder="Add label"
-                  className="bg-black text-white border-gray-700"
-                />
-
-                <Button
-                  type="button"
-                  onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-500"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {/* SELECTED LABELS */}
-              <div className="flex flex-wrap gap-2">
-                {formData.labels.map(label => (
-                  <Badge key={label} className="bg-white text-black">
-                    {label}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLabel(label)}
-                      className="ml-1 hover:text-red-500"
-                    >
-                      <X className="h-3 w-3"/>
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              {/* EXISTING LABELS */}
-              <div>
-                <p className="text-sm text-gray-400 mb-2">
-                  Existing labels
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {allLabels.map(label => {
-                    const selected = formData.labels.includes(label)
-                    return (
-                      <Badge
-                        key={label}
-                        onClick={() => toggleExistingLabel(label)}
-                        className={`cursor-pointer
-                          ${
-                            selected
-                            ? 'bg-gray-800 text-white'
-                            : 'bg-white text-black hover:bg-gray-500'
-                          }
-                        `}
-                      >
-                        {label}
-                      </Badge>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* FOOTER */}
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-500"
-              onClick={() => setIsAddDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddVideo}
-              disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-              className="bg-white text-black hover:bg-gray-500"
-            >
-              Add Video
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Video Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent
-          className="max-w-2xl max-h-[90vh] flex flex-col bg-black text-white border border-gray-800"
-          zIndex={200}
-        >
-          {/* HEADER */}
-          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
-            <DialogTitle className="text-lg font-semibold">
-              Edit Video
-            </DialogTitle>
-          </DialogHeader>
-
-          {/* BODY */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-
-            <div className="space-y-1">
-              <Label htmlFor="editTitle" className="text-gray-300">Title *</Label>
-              <Input
-                id="editTitle"
-                value={formData.title}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, title: e.target.value }))
-                }
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="editEmbedLink" className="text-gray-300">Embed Link *</Label>
-              <Input
-                id="editEmbedLink"
-                value={formData.embedLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, embedLink: e.target.value }))
-                }
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="editThumbnailLink" className="text-gray-300">Thumbnail Link *</Label>
-              <Input
-                id="editThumbnailLink"
-                value={formData.thumbnailLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, thumbnailLink: e.target.value }))
-                }
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="editDownloadLink" className="text-gray-300">
-                Download Link
-              </Label>
-              <Input
-                id="editDownloadLink"
-                value={formData.downloadLink}
-                onChange={(e) =>
-                  setFormData(prev => ({ ...prev, downloadLink: e.target.value }))
-                }
-                className="bg-black text-white border-gray-700"
-              />
-            </div>
-            {/* LABELS */}
-            <div className="space-y-1">
-              <Label className="text-gray-300">Labels</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={formData.newLabel}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, newLabel: e.target.value }))
-                  }
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
-                  placeholder="Add label"
-                  className="bg-black text-white border-gray-700"
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddLabel}
-                  className="bg-white text-black hover:bg-gray-500"
-                >
-                  <Plus className="h-4 w-4"/>
-                </Button>
-              </div>
-
-              {/* SELECTED LABELS */}
-              <div className="flex flex-wrap gap-2">
-                {formData.labels.map(label => (
-                  <Badge key={label} className="bg-white text-black">
-                    {label}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLabel(label)}
-                      className="ml-1 hover:text-red-500"
-                    >
-                      <X className="h-3 w-3"/>
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              {/* EXISTING LABELS */}
-              <div>
-                <p className="text-sm text-gray-400 mb-2">
-                  Existing labels
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {allLabels.map(label => {
-                    const selected = formData.labels.includes(label)
-                    return (
-                      <Badge
-                        key={label}
-                        onClick={() => toggleExistingLabel(label)}
-                        className={`cursor-pointer
-                          ${
-                            selected
-                              ? 'bg-gray-800 text-white'
-                              : 'bg-white text-black hover:bg-gray-500'
-                          }
-                        `}
-                      >
-                        {label}
-                      </Badge>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* FOOTER */}
-          <div className="border-t border-gray-800 px-6 py-4 flex justify-end gap-3">
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-500"
-              onClick={() => setIsEditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleEditVideo}
-              disabled={!formData.title || !formData.embedLink || !formData.thumbnailLink}
-              className="bg-white text-black hover:bg-gray-500"
-            >
-              Save Changes
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent
-          className="bg-black text-white border border-gray-800"
-          zIndex={200}
-        >
-          <DialogHeader>
-            <DialogTitle>Confirm Delete</DialogTitle>
-          </DialogHeader>
-          <p className="text-gray-300">
-            Are you sure you want to delete this video?
-            This action cannot be undone.
-          </p>
-          <div className="flex gap-2 justify-end pt-4">
-            <Button
-              variant="outline"
-              className="border-gray-700 text-black hover:bg-gray-500"
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="bg-red-700 text-white hover:bg-red-600"
-              onClick={handleDeleteVideo}
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Password Dialog */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogClose}>
-        <DialogContent
-          className="bg-black text-white border border-gray-800"
-          zIndex={200}
-        >
-          <DialogHeader className="px-6 pt-6 pb-2 border-b border-gray-800">
-            <DialogTitle className="text-lg font-semibold text-center">Enter Password</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-              ref={inputRef}
-              placeholder="Password..."
-              className="bg-black text-white border-gray-700"
-            />
-            {passwordError && (
-              <p className="text-sm text-red-500">
-                {passwordError}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                className="border-gray-700 text-black hover:bg-gray-500"
-                onClick={handlePasswordDialogClose}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                onClick={verifyPassword}
-                className="bg-white text-black hover:bg-gray-500"
-              >
-                Authenticate
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
         <DialogContent className="max-w-md bg-black text-white border border-gray-800">
@@ -1391,26 +625,6 @@ function Home() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-              {!isAuthenticated ? (
-                <Button
-                  onClick={() => setIsPasswordDialogOpen(true)}
-                  className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
-                >
-                  <LogIn className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    setIsAuthenticated(false);
-                    setCookie('admin_pass', '', -1);
-                    setIsAddDialogOpen(false);
-                    alert("Berhasil keluar");
-                  }}
-                  className="flex items-center justify-center gap-1 bg-white text-black hover:bg-gray-500 px-2 py-2 w-1/2"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
               )}
           </div>
         </DialogContent>
