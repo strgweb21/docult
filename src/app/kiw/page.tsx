@@ -87,6 +87,8 @@ function Home() {
     data?: Video | null;
   } | null>(null);
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -333,41 +335,48 @@ function Home() {
   };
 
   const executeAction = async (type: 'add' | 'edit' | 'delete', storedPassword: string) => {
-    if (type === 'add') {
-      const addResponse = await fetch('/api/videos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
-        body: JSON.stringify(formData),
-      });
-      if (!addResponse.ok) throw new Error('Add failed');
-      setIsAddDialogOpen(false);
-      await fetchMeta();
-      fetchVideos(1, 'all', searchInput, false);
-    }
+    try {
+      if (type === 'add') {
+        const addResponse = await fetch('/api/videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', authorization: storedPassword },
+          body: JSON.stringify(formData),
+        });
+        if (!addResponse.ok) throw new Error('Add failed');
+        showToast('Video added successfully', 'success');
+        setIsAddDialogOpen(false);
+        await fetchMeta();
+        fetchVideos(1, 'all', searchInput, false);
+      }
 
-    if (type === 'edit' && selectedVideo) {
-      const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', authorization: storedPassword },
-        body: JSON.stringify(formData),
-      });
-      if (!editResponse.ok) throw new Error('Edit failed');
-      setIsEditDialogOpen(false);
-      setSelectedVideo(null);
-      await fetchMeta();
-      fetchVideos(currentPage, selectedLabel);
-    }
+      if (type === 'edit' && selectedVideo) {
+        const editResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', authorization: storedPassword },
+          body: JSON.stringify(formData),
+        });
+        if (!editResponse.ok) throw new Error('Edit failed');
+        showToast('Video updated successfully', 'success');
+        setIsEditDialogOpen(false);
+        setSelectedVideo(null);
+        await fetchMeta();
+        fetchVideos(currentPage, selectedLabel);
+      }
 
-    if (type === 'delete' && selectedVideo) {
-      const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
-        method: 'DELETE',
-        headers: { authorization: storedPassword },
-      });
-      if (!deleteResponse.ok) throw new Error('Delete failed');
-      setIsDeleteDialogOpen(false);
-      setSelectedVideo(null);
-      await fetchMeta();
-      fetchVideos(currentPage, selectedLabel);
+      if (type === 'delete' && selectedVideo) {
+        const deleteResponse = await fetch(`/api/videos/${selectedVideo.id}`, {
+          method: 'DELETE',
+          headers: { authorization: storedPassword },
+        });
+        if (!deleteResponse.ok) throw new Error('Delete failed');
+        showToast('Video deleted successfully', 'success');
+        setIsDeleteDialogOpen(false);
+        setSelectedVideo(null);
+        await fetchMeta();
+        fetchVideos(currentPage, selectedLabel);
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Operation failed', 'error');
     }
   };
 
@@ -381,6 +390,7 @@ function Home() {
 
       if (!response.ok) {
         setPasswordError('Invalid password');
+        showToast('Invalid password', 'error');
         return;
       }
 
@@ -388,6 +398,7 @@ function Home() {
       setIsPasswordDialogOpen(false);
       setIsAuthenticated(true);
       setCookie('admin_pass', password, 365);
+      showToast('Authenticated successfully', 'success');
 
       if (pendingAction) {
         if (pendingAction.type === 'add') {
@@ -415,6 +426,7 @@ function Home() {
     } catch (err) {
       console.error(err);
       setPasswordError('Invalid password');
+      showToast('Invalid password', 'error');
     }
   };
 
@@ -569,6 +581,12 @@ function Home() {
     if (currentVideoIndex >= 0 && currentVideoIndex < videos.length - 1)
       setSelectedVideo(videos[currentVideoIndex + 1]);
   };
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
@@ -1540,6 +1558,13 @@ function Home() {
           </div>
         </DialogContent>
       </Dialog>
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-[200] px-4 py-2 rounded shadow-lg ${
+          toast.type === 'success' ? 'bg-black border-b border-gray-700' : 'bg-black border-b border-gray-700'
+        } text-white`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
