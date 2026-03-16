@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut} from 'lucide-react';
+import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut, Loader2} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
@@ -78,7 +78,7 @@ function Home() {
   const [searchInput, setSearchInput] = useState('');
   const [gridCols, setGridCols] = useState(4);
   const [provider, setProvider] = useState<
-    'turbovip' | 'byse' | 'rpmshare' | 'streamp2p' | 'seekstreaming' | 'player4me'
+    'turbovip' | 'byse' | 'rpmshare' | 'streamp2p' | 'seekstreaming' | 'player4me' | 'upnshare'
   >('turbovip');
 
   const [actionType, setActionType] = useState<'add' | 'edit' | 'delete' | null>(null);
@@ -538,13 +538,18 @@ function Home() {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || 'Sync gagal');
+        showToast(data.error || 'Sync gagal', 'error');
         return;
       }
 
-      alert(`Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`);
+      showToast(
+        `Sync selesai: ${data.inserted} video ditambahkan, ${data.skipped} duplikat`,
+        'success'
+      );
       fetchMeta();
       fetchVideos(1, selectedLabel);
+    } catch (error) {
+      showToast('Terjadi kesalahan saat sync', 'error');
     } finally {
       setSyncLoading(false);
     }
@@ -584,8 +589,12 @@ function Home() {
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 10000);
   }, []);
+
+  const SkeletonCard = () => (
+    <div className="aspect-video bg-gray-800 rounded animate-pulse" />
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-black">
@@ -873,6 +882,11 @@ function Home() {
                       </div>
                     )}
                   </div>
+                    {isLoadingMore && videos.length === 0 && (
+                      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                        {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+                      </div>
+                    )}
                 </div>
               ))}
 
@@ -885,7 +899,7 @@ function Home() {
             {/* Loading Indicator */}
             {isLoadingMore && (
               <div className="flex justify-center mt-4">
-                <p className="text-gray-400">Loading...</p>
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
             )}
           </div>
@@ -1078,7 +1092,7 @@ function Home() {
               <Select
                 value={provider}
                 onValueChange={(v) =>
-                  setProvider(v as "turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me")
+                  setProvider(v as "turbovip" | "byse" | "rpmshare" | "streamp2p" | "seekstreaming" | "player4me" | 'upnshare')
                 }
               >
                 <SelectTrigger className="w-[140px] shrink-0 bg-white text-black border-gray-700">
@@ -1091,6 +1105,7 @@ function Home() {
                   <SelectItem value="streamp2p">StreamP2P</SelectItem>
                   <SelectItem value="seekstreaming">SeekStreaming</SelectItem>
                   <SelectItem value="player4me">Player4Me</SelectItem>
+                  <SelectItem value="upnshare">UPnShare</SelectItem>
                 </SelectContent>
               </Select>
               {/* API KEY INPUT (AUTO WIDTH / CLIP) */}
@@ -1116,7 +1131,8 @@ function Home() {
                 disabled={syncLoading || !turbovipKey}
                 className="shrink-0 bg-white text-black hover:bg-gray-500"
               >
-                {syncLoading ? "Syncing..." : "Sync"}
+                {syncLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {syncLoading ? "" : "Sync"}
               </Button>
 
             </div>

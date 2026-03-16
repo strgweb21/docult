@@ -18,9 +18,9 @@ export async function POST(req: Request) {
     })
     const existingTitles = new Set(existingVideos.map(v => v.title))
 
-    // Ambil folder
+    // Ambil folder dari API
     const folderRes = await fetch(
-      "https://seekstreaming.com/api/v1/video/folder",
+      "https://upnshare.com/api/v1/video/folder",
       {
         method: "GET",
         headers: {
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
         }
       }
     )
+
     const folders = await folderRes.json()
 
     let inserted = 0
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
 
     for (const folder of folders) {
       const videoRes = await fetch(
-        `https://seekstreaming.com/api/v1/video/folder/${folder.id}`,
+        `https://upnshare.com/api/v1/video/folder/${folder.id}`,
         {
           method: "GET",
           headers: {
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
           }
         }
       )
+
       const videoData = await videoRes.json()
       const videos = videoData.data || []
 
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
           continue
         }
 
-        const embed = `https://dclt.embedseek.com/#${video.id}`
+        const embed = `https://dclt.uns.wtf/#${video.id}`
 
         videosToInsert.push({
           title: video.name,
@@ -67,7 +69,7 @@ export async function POST(req: Request) {
           labels: folder.name
         })
 
-        // Tambahkan judul ke Set agar dalam folder yang sama juga tidak duplikat
+        // Tambahkan judul ke Set agar dalam batch yang sama juga tidak duplikat
         existingTitles.add(video.name)
       }
 

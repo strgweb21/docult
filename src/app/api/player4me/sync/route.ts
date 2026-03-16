@@ -2,9 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(req: Request) {
-
   try {
-
     const { apiKey } = await req.json()
 
     if (!apiKey) {
@@ -14,15 +12,13 @@ export async function POST(req: Request) {
       )
     }
 
+    // Ambil semua judul yang sudah ada di database
     const existingVideos = await prisma.video.findMany({
-      select: { embedLink: true }
+      select: { title: true }
     })
+    const existingTitles = new Set(existingVideos.map(v => v.title))
 
-    const existingLinks = new Set(
-      existingVideos.map(v => v.embedLink)
-    )
-
-    // ambil folder
+    // Ambil folder dari API
     const folderRes = await fetch(
       "https://player4me.com/api/v1/video/folder",
       {
@@ -40,7 +36,6 @@ export async function POST(req: Request) {
     let skipped = 0
 
     for (const folder of folders) {
-
       const videoRes = await fetch(
         `https://player4me.com/api/v1/video/folder/${folder.id}`,
         {
@@ -53,19 +48,18 @@ export async function POST(req: Request) {
       )
 
       const videoData = await videoRes.json()
-
       const videos = videoData.data || []
 
       const videosToInsert: any[] = []
 
       for (const video of videos) {
-
-        const embed = `https://dclt.embed4me.com/#${video.id}`
-
-        if (existingLinks.has(embed)) {
+        // Cek duplikat berdasarkan judul
+        if (existingTitles.has(video.name)) {
           skipped++
           continue
         }
+
+        const embed = `https://dclt.embed4me.com/#${video.id}`
 
         videosToInsert.push({
           title: video.name,
@@ -75,20 +69,16 @@ export async function POST(req: Request) {
           labels: folder.name
         })
 
-        existingLinks.add(embed)
-
+        // Tambahkan judul ke Set agar dalam batch yang sama juga tidak duplikat
+        existingTitles.add(video.name)
       }
 
       if (videosToInsert.length > 0) {
-
         await prisma.video.createMany({
           data: videosToInsert
         })
-
         inserted += videosToInsert.length
-
       }
-
     }
 
     return NextResponse.json({
@@ -96,16 +86,11 @@ export async function POST(req: Request) {
       inserted,
       skipped
     })
-
   } catch (err) {
-
     console.error(err)
-
     return NextResponse.json(
       { error: "Sync failed" },
       { status: 500 }
     )
-
   }
-
 }

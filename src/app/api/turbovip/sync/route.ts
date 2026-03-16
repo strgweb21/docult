@@ -9,41 +9,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing API key" }, { status: 400 })
     }
 
-    // 🔥 ambil semua title yang sudah ada di database
+    // Ambil semua judul yang sudah ada di database
     const existingVideos = await prisma.video.findMany({
       select: { title: true }
     })
-
     const existingTitles = new Set(existingVideos.map(v => v.title))
 
     const foldersRes = await fetch(
       `https://api.turboviplay.com/listFolder?keyApi=${apiKey}`
     )
-
     const foldersData = await foldersRes.json()
-
-    const folders = Array.isArray(foldersData)
-      ? foldersData
-      : [foldersData]
+    const folders = Array.isArray(foldersData) ? foldersData : [foldersData]
 
     let inserted = 0
     let skipped = 0
 
     for (const folder of folders) {
-
       let page = 1
       let hasMore = true
 
       while (hasMore) {
-
         const listRes = await fetch(
           `https://api.turboviplay.com/listFile?keyApi=${apiKey}&page=${page}&perPage=500&folder=${encodeURIComponent(
             folder.nameFolder
           )}`
         )
-
         const listData = await listRes.json()
-
         const files = listData.file || []
 
         if (files.length === 0) {
@@ -52,13 +43,12 @@ export async function POST(req: Request) {
         }
 
         for (const file of files) {
-
-          // 🔧 label tanpa JSON
+          // Gabungkan folder sebagai label (dipisah koma)
           const labels = file.folder
             ? file.folder.split(",").map((f: string) => f.trim()).join(",")
             : ""
 
-          // 🔥 cek duplikat pakai memory (super cepat)
+          // Cek duplikat berdasarkan judul
           if (existingTitles.has(file.title)) {
             skipped++
             continue
@@ -87,10 +77,8 @@ export async function POST(req: Request) {
       inserted,
       skipped
     })
-
   } catch (err) {
     console.error(err)
-
     return NextResponse.json(
       { error: "Sync failed" },
       { status: 500 }
