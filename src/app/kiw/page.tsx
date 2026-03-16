@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut, Loader2} from 'lucide-react';
+import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
@@ -77,6 +77,7 @@ function Home() {
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [gridCols, setGridCols] = useState(4);
+  const [showInfo, setShowInfo] = useState(true);
   const [provider, setProvider] = useState<
     'turbovip' | 'byse' | 'rpmshare' | 'streamp2p' | 'seekstreaming' | 'player4me' | 'upnshare'
   >('turbovip');
@@ -907,13 +908,22 @@ function Home() {
       )}
 
       {/* Full-screen Theater Overlay */}
+      {/* Full-screen Theater Overlay */}
       {selectedVideo && (
         <div
           ref={overlayRef}
           onClick={handleOverlayClick}
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-2"
         >
-          <div className="flex flex-col lg:flex-row items-center gap-6 max-w-full max-h-[90vh]">
+          {/* 🔧 Tombol Toggle Info */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
+            className="absolute top-4 right-4 z-10 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition"
+          >
+            {showInfo ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+
+          <div className={`flex flex-col lg:flex-row items-center max-w-full max-h-[90vh] ${showInfo ? 'gap-6' : ''}`}>
             {/* Video Player */}
             <div
               className="relative bg-black w-full max-w-full"
@@ -921,10 +931,7 @@ function Home() {
                 width: isMobile ? '100vw' : `${videoWidth}px`,
               }}
             >
-              <div
-                className="relative w-full"
-                style={{ paddingTop: `${100 / (16 / 9)}%` }}
-              >
+              <div className="relative w-full" style={{ paddingTop: `${100 / (16 / 9)}%` }}>
                 {selectedVideo.embedLink.endsWith('.mp4') ? (
                   <video
                     src={selectedVideo.embedLink}
@@ -957,7 +964,7 @@ function Home() {
               <button
                 onClick={(e) => { e.stopPropagation(); prevVideo(); }}
                 className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-transparent text-white p-2 rounded-full hover:bg-black/70"
-            >
+              >
                 <ChevronLeft className="w-6 h-6" />
               </button>
             )}
@@ -972,103 +979,99 @@ function Home() {
               </button>
             )}
 
-            {/* Video Info and Actions */}
-            <div className="w-full lg:w-72 bg-black text-white flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-              <div className="max-w-full">
-                <h2 className="text-xl font-bold break-words leading-tight">{selectedVideo.title}</h2>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {selectedVideo.labels.map(label => (
-                    <Badge key={label} variant="secondary" className="bg-transparant border-gray-700 text-white">
-                      {label}
-                    </Badge>
-                  ))}
+            {/* 🔧 Panel Info – hanya dirender jika showInfo true */}
+            {showInfo && (
+              <div className="w-full lg:w-72 bg-black text-white flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+                <div className="max-w-full">
+                  <h2 className="text-xl font-bold break-words leading-tight">{selectedVideo.title}</h2>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedVideo.labels.map(label => (
+                      <Badge key={label} variant="secondary" className="bg-transparant border-gray-700 text-white">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Width Controls + Close */}
-              <div className="flex justify-center mt-4">
-                <div className="flex flex-wrap gap-2 items-center">
-
-                  {/* Width buttons hanya tampil di desktop */}
-                  {!isMobile && [500, 820, 960].map(width => (
+                {/* Width Controls + Close */}
+                <div className="flex justify-center mt-4">
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {!isMobile && [500, 820, 960].map(width => (
+                      <Button
+                        key={width}
+                        variant={videoWidth === width ? 'default' : 'outline'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setVideoWidth(width as 500 | 820 | 960);
+                        }}
+                        size="sm"
+                        className={
+                          videoWidth === width
+                            ? 'bg-white text-black hover:bg-gray-500'
+                            : 'bg-transparent text-white border-gray-700 hover:bg-gray-500'
+                        }
+                      >
+                        {width}px
+                      </Button>
+                    ))}
                     <Button
-                      key={width}
-                      variant={videoWidth === width ? 'default' : 'outline'}
+                      variant="outline"
+                      size="sm"
+                      className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
+                      onClick={() => setSelectedVideo(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {isAuthenticated && (
+                    <Button
+                      variant="outline"
+                      className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setVideoWidth(width as 500 | 820 | 960);
+                        if (!isAuthenticated) {
+                          setSelectedVideo(selectedVideo);
+                          setPendingAction({ type: 'edit', data: selectedVideo });
+                          setIsPasswordDialogOpen(true);
+                          return;
+                        }
+                        openEditDialog(selectedVideo);
                       }}
-                      size="sm"
-                      className={
-                        videoWidth === width
-                          ? 'bg-white text-black hover:bg-gray-500'
-                          : 'bg-transparent text-white border-gray-700 hover:bg-gray-500'
-                      }
                     >
-                      {width}px
+                      Edit
                     </Button>
-                  ))}
-
-                  {/* Tombol Close tetap tampil */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={() => setSelectedVideo(null)}
-                  >
-                    Close
-                  </Button>
+                  )}
+                  {isAuthenticated && (
+                    <Button
+                      variant="outline"
+                      className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVideo(selectedVideo);
+                        setIsDeleteDialogOpen(true);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                  {selectedVideo.downloadLink && (
+                    <Button
+                      variant="outline"
+                      className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(selectedVideo.downloadLink, '_blank');
+                      }}
+                    >
+                      Download
+                    </Button>
+                  )}
                 </div>
               </div>
-
-              <div className="flex flex-col gap-2">
-                {isAuthenticated && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                    e.stopPropagation();
-                    
-                    if (!isAuthenticated) {
-                      setSelectedVideo(selectedVideo);
-                      setPendingAction({ type: 'edit', data: selectedVideo });
-                      setIsPasswordDialogOpen(true);
-                      return;
-                    }
-                    
-                    openEditDialog(selectedVideo);
-                  }}
-                  >
-                    Edit
-                  </Button>
-                )}
-                {isAuthenticated && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedVideo(selectedVideo);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                {selectedVideo.downloadLink && (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(selectedVideo.downloadLink, '_blank');
-                    }}
-                  >
-                    Download
-                  </Button>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

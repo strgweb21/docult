@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings, Play, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 interface Video {
   id: string;
@@ -36,6 +36,7 @@ function Home() {
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [videoWidth, setVideoWidth] = useState<500 | 820 | 960>(820);
+  const [showInfo, setShowInfo] = useState(true);
 
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -463,6 +464,13 @@ function Home() {
           onClick={handleOverlayClick}
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-2"
         >
+          {/* 🔧 Tombol Toggle Info */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
+            className="absolute top-4 right-4 z-10 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition"
+          >
+            {showInfo ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
           <div className="flex flex-col lg:flex-row items-center gap-6 max-w-full max-h-[90vh]">
             {/* Video Player */}
             <div
@@ -523,17 +531,18 @@ function Home() {
             )}
 
             {/* Video Info and Actions */}
-            <div className="w-full lg:w-72 bg-black text-white flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-              <div className="max-w-full">
-                <h2 className="text-xl font-bold break-words leading-tight">{selectedVideo.title}</h2>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {selectedVideo.labels.map(label => (
-                    <Badge key={label} variant="secondary" className="bg-transparant border-gray-700 text-white">
-                      {label}
-                    </Badge>
-                  ))}
+            {showInfo && (
+              <div className="w-full lg:w-72 bg-black text-white flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+                <div className="max-w-full">
+                  <h2 className="text-xl font-bold break-words leading-tight">{selectedVideo.title}</h2>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedVideo.labels.map(label => (
+                      <Badge key={label} variant="secondary" className="bg-transparant border-gray-700 text-white">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
               {/* Width Controls + Close */}
               <div className="flex justify-center mt-4">
@@ -571,6 +580,7 @@ function Home() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
