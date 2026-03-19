@@ -31,6 +31,7 @@ export default function Page() {
 function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [labelCounts, setLabelCounts] = useState<Map<string, number>>(new Map());
+  const labelRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [totalVideos, setTotalVideos] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLabel, setSelectedLabel] = useState<string>('all');
@@ -182,6 +183,27 @@ function Home() {
     return selectedVideo ? videos.findIndex((v) => v.id === selectedVideo.id) : -1;
   }, [selectedVideo, videos]);
 
+  const sortedLabels = useMemo(() => {
+    return Array.from(labelCounts.keys()).sort((a, b) => a.localeCompare(b));
+  }, [labelCounts]);
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+
+    if (key.length === 1 && /[a-z0-9]/.test(key)) {
+      const found = sortedLabels.find(label =>
+        label.toLowerCase().startsWith(key)
+      );
+
+      if (found && labelRefs.current[found]) {
+        labelRefs.current[found]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    }
+  };
+
   const prevVideo = () => {
     if (currentVideoIndex > 0) setSelectedVideo(videos[currentVideoIndex - 1]);
   };
@@ -224,12 +246,18 @@ function Home() {
                   <SelectTrigger id="labelFilter" className="w-60 text-white">
                     <SelectValue placeholder="All Labels" />
                   </SelectTrigger>
-                  <SelectContent className="text-white bg-black">
+                  <SelectContent className="text-white bg-black" onKeyDown={handleLabelKeyDown}>
                     <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
                     {Array.from(labelCounts.keys())
                       .sort((a, b) => a.localeCompare(b))
                       .map((label) => (
-                        <SelectItem key={label} value={label}>
+                        <SelectItem
+                          key={label}
+                          value={label}
+                          ref={(el) => {
+                            labelRefs.current[label] = el;
+                          }}
+                        >
                           {label} ({labelCounts.get(label)})
                         </SelectItem>
                       ))}
@@ -286,7 +314,13 @@ function Home() {
                   {Array.from(labelCounts.keys())
                     .sort((a, b) => a.localeCompare(b))
                     .map((label) => (
-                      <SelectItem key={label} value={label}>
+                      <SelectItem
+                        key={label}
+                        value={label}
+                        ref={(el) => {
+                          labelRefs.current[label] = el;
+                        }}
+                      >
                         {label} ({labelCounts.get(label)})
                       </SelectItem>
                     ))}
@@ -578,6 +612,21 @@ function Home() {
                     Close
                   </Button>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {selectedVideo.downloadLink && (
+                  <Button
+                    variant="outline"
+                    className="bg-transparent text-white border-gray-700 hover:bg-gray-500"
+                    onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(selectedVideo.downloadLink, '_blank');
+                    }}
+                  >
+                    Download
+                  </Button>
+                )}
               </div>
             </div>
             )}

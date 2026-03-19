@@ -46,6 +46,7 @@ function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [allLabels, setAllLabels] = useState<string[]>([]);
   const [labelCounts, setLabelCounts] = useState<Map<string, number>>(new Map());
+  const labelRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [totalVideos, setTotalVideos] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -579,6 +580,35 @@ function Home() {
     return selectedVideo ? videos.findIndex((v) => v.id === selectedVideo.id) : -1;
   }, [selectedVideo, videos]);
 
+  const filteredLabels = useMemo(() => {
+    if (!formData.newLabel.trim()) return allLabels;
+
+    return allLabels.filter(label =>
+      label.toLowerCase().includes(formData.newLabel.toLowerCase())
+    );
+  }, [formData.newLabel, allLabels]);
+
+  const sortedLabels = useMemo(() => {
+    return Array.from(labelCounts.keys()).sort((a, b) => a.localeCompare(b));
+  }, [labelCounts]);
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+
+    if (key.length === 1 && /[a-z0-9]/.test(key)) {
+      const found = sortedLabels.find(label =>
+        label.toLowerCase().startsWith(key)
+      );
+
+      if (found && labelRefs.current[found]) {
+        labelRefs.current[found]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    }
+  };
+
   const prevVideo = () => {
     if (currentVideoIndex > 0) setSelectedVideo(videos[currentVideoIndex - 1]);
   };
@@ -631,12 +661,21 @@ function Home() {
                   <SelectTrigger id="labelFilter" className="w-60 text-white">
                     <SelectValue placeholder="All Labels" />
                   </SelectTrigger>
-                  <SelectContent className="text-white bg-black">
+                  <SelectContent
+                    className="text-white bg-black"
+                    onKeyDown={handleLabelKeyDown}
+                  >
                     <SelectItem value="all">All Labels ({totalVideos})</SelectItem>
                     {Array.from(labelCounts.keys())
                       .sort((a, b) => a.localeCompare(b))
                       .map((label) => (
-                        <SelectItem key={label} value={label}>
+                        <SelectItem
+                          key={label}
+                          value={label}
+                          ref={(el) => {
+                            labelRefs.current[label] = el;
+                          }}
+                        >
                           {label} ({labelCounts.get(label)})
                         </SelectItem>
                       ))}
@@ -1222,7 +1261,7 @@ function Home() {
                   Existing labels
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {allLabels.map(label => {
+                  {filteredLabels.map(label => {
                     const selected = formData.labels.includes(label)
                     return (
                       <Badge
@@ -1372,7 +1411,7 @@ function Home() {
                   Existing labels
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {allLabels.map(label => {
+                  {filteredLabels.map(label => {
                     const selected = formData.labels.includes(label)
                     return (
                       <Badge
