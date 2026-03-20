@@ -50,6 +50,10 @@ function Home() {
   const [sort, setSort] = useState<string>('created_desc');
   const [searchInput, setSearchInput] = useState('');
   const [gridCols, setGridCols] = useState(4);
+
+  const [watchFilter, setWatchFilter] = useState<'all' | 'watched' | 'unwatched' | 'last'>('all');
+  const [watchedVideos, setWatchedVideos] = useState<Set<string>>(new Set());
+  const [lastWatched, setLastWatched] = useState<string | null>(null);
   
   // Refs
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -136,6 +140,19 @@ function Home() {
   }, [searchInput, selectedLabel]);
 
   useEffect(() => {
+    const watched = localStorage.getItem('watched_videos');
+    const last = localStorage.getItem('last_video');
+
+    if (watched) {
+      setWatchedVideos(new Set(JSON.parse(watched)));
+    }
+
+    if (last) {
+      setLastWatched(last);
+    }
+  }, []);
+
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -186,6 +203,39 @@ function Home() {
   const sortedLabels = useMemo(() => {
     return Array.from(labelCounts.keys()).sort((a, b) => a.localeCompare(b));
   }, [labelCounts]);
+
+  const markAsWatched = (videoId: string) => {
+    const id = String(videoId);
+
+    setWatchedVideos(prev => {
+      const updated = new Set(prev);
+      updated.add(id);
+
+      localStorage.setItem('watched_videos', JSON.stringify([...updated]));
+      return updated;
+    });
+
+    setLastWatched(id);
+    localStorage.setItem('last_video', id);
+  };
+
+  const filteredVideos = useMemo(() => {
+    return videos.filter(video => {
+      if (watchFilter === 'watched') {
+        return watchedVideos.has(video.id);
+      }
+
+      if (watchFilter === 'unwatched') {
+        return !watchedVideos.has(video.id);
+      }
+
+      if (watchFilter === 'last') {
+        return lastWatched === video.id;
+      }
+
+      return true;
+    });
+  }, [videos, watchFilter, watchedVideos, lastWatched]);
 
   const handleLabelKeyDown = (e: React.KeyboardEvent) => {
     const key = e.key.toLowerCase();
@@ -362,10 +412,13 @@ function Home() {
               className={`grid gap-4 grid-cols-2 lg:grid-cols-4${viewMode === 'grid' ? '' : 'grid-cols-1'}`}
               style={{ gridTemplateColumns: viewMode === 'grid' ? window.innerWidth < 768 ? 'repeat(2, minmax(0, 1fr))' : `repeat(${gridCols}, minmax(0, 1fr))` : '1fr' }}
             >
-              {videos.map(video => (
+              {filteredVideos.map(video => (
               <div
                 key={video.id}
-                onClick={() => setSelectedVideo(video)}
+                onClick={() => {
+                  setSelectedVideo(video);
+                  markAsWatched(video.id);
+                }}
                 className={`
                   cursor-pointer group
                   ${viewMode === 'list' ? 'flex gap-4 items-center mb-4' : ''}
@@ -376,6 +429,11 @@ function Home() {
                   relative
                   ${viewMode === 'list' ? 'w-40 flex-shrink-0 aspect-auto rounded' : 'aspect-video overflow-hidden rounded bg-gray-900'}
                 `}>
+                  {watchedVideos.has(video.id) && (
+                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] sm:text-xs sm:px-1 sm:py-0.5 rounded px-1">
+                      Watched
+                    </div>
+                  )}
                   <img
                     src={video.thumbnailLink}
                     alt={video.title}
@@ -673,6 +731,18 @@ function Home() {
                   </SelectContent>
                 </Select>
               )}
+
+            <Select value={watchFilter} onValueChange={(v: any) => setWatchFilter(v)}>
+              <SelectTrigger className="w-1/2 text-white text-center bg-black">
+                <SelectValue placeholder="Watch" />
+              </SelectTrigger>
+              <SelectContent className="bg-black text-white">
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="watched">Watched</SelectItem>
+                <SelectItem value="unwatched">Unwatched</SelectItem>
+                <SelectItem value="last">Last</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </DialogContent>
       </Dialog>

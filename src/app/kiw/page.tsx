@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut, Loader2, Eye, EyeOff } from 'lucide-react';
+import { X, Plus, Settings, Play, ChevronLeft, ChevronRight, LogIn, LogOut, Loader2, Eye, EyeOff, CopyCheck } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Video {
@@ -73,8 +73,20 @@ function Home() {
   const [passwordError, setPasswordError] = useState('');
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
+  // BULK ACTION STATE
+  const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set());
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [bulkLabels, setBulkLabels] = useState<string[]>([]);
+  const [bulkNewLabel, setBulkNewLabel] = useState('');
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const visibleVideos = videos;
+
+  const [watchedVideos, setWatchedVideos] = useState<Set<string>>(new Set());
+  const [lastWatched, setLastWatched] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState<string>('created_desc');
+  const [watchFilter, setWatchFilter] = useState<'all' | 'watched' | 'unwatched' | 'last'>('all');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [gridCols, setGridCols] = useState(4);
@@ -311,6 +323,19 @@ function Home() {
   }, [videos]);
 
   useEffect(() => {
+    const watched = localStorage.getItem('watched_videos');
+    const last = localStorage.getItem('last_video');
+
+    if (watched) {
+      setWatchedVideos(new Set(JSON.parse(watched)));
+    }
+
+    if (last) {
+      setLastWatched(last);
+    }
+  }, []);
+
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -379,6 +404,42 @@ function Home() {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Operation failed', 'error');
+    }
+  };
+
+  const handleBulkEditLabels = async () => {
+    const saved = getCookie('admin_pass');
+    if (!saved) {
+      setActionType('edit');
+      setIsPasswordDialogOpen(true);
+      return;
+    }
+
+    try {
+      await Promise.all(
+        Array.from(selectedVideos).map(id =>
+          fetch(`/api/videos/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: saved,
+            },
+            body: JSON.stringify({
+              labels: bulkLabels,
+            }),
+          })
+        )
+      );
+
+      showToast('Bulk update success', 'success');
+      setIsBulkEditDialogOpen(false);
+      setSelectedVideos(new Set());
+      setBulkLabels([]);
+
+      fetchMeta();
+      fetchVideos(1, selectedLabel);
+    } catch {
+      showToast('Bulk update failed', 'error');
     }
   };
 
@@ -457,6 +518,15 @@ function Home() {
 
   const handleRemoveLabel = (label: string) => {
     setFormData((prev) => ({ ...prev, labels: prev.labels.filter((l) => l !== label) }));
+  };
+
+  const toggleSelectVideo = (id: string) => {
+    setSelectedVideos(prev => {
+      const updated = new Set(prev);
+      if (updated.has(id)) updated.delete(id);
+      else updated.add(id);
+      return updated;
+    });
   };
 
   const openAddDialog = () => {
@@ -627,6 +697,37 @@ function Home() {
     <div className="aspect-video bg-gray-800 rounded animate-pulse" />
   );
 
+  const toggleBulkLabel = (label: string) => {
+    setBulkLabels(prev =>
+      prev.includes(label)
+        ? prev.filter(l => l !== label)
+        : [...prev, label]
+    );
+  };
+
+  const handleAddBulkLabel = () => {
+    if (!bulkNewLabel.trim()) return;
+
+    const newLabels = bulkNewLabel
+      .split(/,|\n/)
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    setBulkLabels(prev =>
+      Array.from(new Set([...prev, ...newLabels]))
+    );
+
+    setBulkNewLabel('');
+  };
+
+  const filteredBulkLabels = useMemo(() => {
+    if (!bulkNewLabel.trim()) return allLabels;
+
+    return allLabels.filter(label =>
+      label.toLowerCase().includes(bulkNewLabel.toLowerCase())
+    );
+  }, [bulkNewLabel, allLabels]);
+
   return (
     <div className="min-h-screen flex flex-col bg-black">
       {/* Header */}
@@ -681,6 +782,45 @@ function Home() {
                       ))}
                   </SelectContent>
                 </Select>
+
+                <Button
+                  onClick={() => {
+                    setIsBulkMode(prev => !prev);
+                    setSelectedVideos(new Set());
+                  }}
+                  className="bg-white text-black hover:bg-gray-500 flex items-center gap-1"
+                >
+                  {isBulkMode ? (
+                    <X className="w-4 h-4" />
+                  ) : (
+                    <CopyCheck className="w-4 h-4" />
+                  )}
+                </Button>
+
+                {isBulkMode && (
+                  <Button
+                    onClick={() => {
+                      const visibleIds = visibleVideos.map(v => v.id);
+
+                      const isAllSelected = visibleIds.every(id => selectedVideos.has(id));
+
+                      if (isAllSelected) {
+                        const newSet = new Set(selectedVideos);
+                        visibleIds.forEach(id => newSet.delete(id));
+                        setSelectedVideos(newSet);
+                      } else {
+                        const newSet = new Set(selectedVideos);
+                        visibleIds.forEach(id => newSet.add(id));
+                        setSelectedVideos(newSet);
+                      }
+                    }}
+                    className="bg-white text-black hover:bg-gray-500"
+                  >
+                    {visibleVideos.every(v => selectedVideos.has(v.id))
+                      ? 'Unselect All'
+                      : 'Select All'}
+                  </Button>
+                )}
 
                 {/* Settings */}
                 <Button
@@ -785,6 +925,27 @@ function Home() {
       {isAuthenticated && (
         <main className="flex-1 p-2">
           <div className="max-w-8xl mx-auto">
+            {isBulkMode && selectedVideos.size > 0 && (
+              <div className="mb-4 flex gap-2 items-center">
+                <span className="text-white text-sm">
+                  {selectedVideos.size} selected
+                </span>
+
+                <Button
+                  onClick={() => setIsBulkEditDialogOpen(true)}
+                  className="bg-white text-black hover:bg-gray-500"
+                >
+                  Edit Labels
+                </Button>
+
+                <Button
+                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  className="bg-red-700 text-white hover:bg-red-600"
+                >
+                  Delete Selected
+                </Button>
+              </div>
+            )}
             {/* Video Grid */}
             {videos.length === 0 ? (
               <div className="flex items-center justify-center h-96 text-gray-400">
@@ -797,13 +958,48 @@ function Home() {
               >
                 {videos
                   .filter(video => {
-                    if (statusFilter === 'all') return true;
-                    return videoStatus[video.id] === statusFilter;
+                    // 🔹 filter status (existing)
+                    if (statusFilter !== 'all' && videoStatus[video.id] !== statusFilter) {
+                      return false;
+                    }
+
+                    // 🔹 filter watch history (baru)
+                    if (watchFilter === 'watched' && !watchedVideos.has(video.id)) {
+                      return false;
+                    }
+
+                    if (watchFilter === 'unwatched' && watchedVideos.has(video.id)) {
+                      return false;
+                    }
+
+                    if (watchFilter === 'last' && lastWatched !== video.id) {
+                      return false;
+                    }
+
+                    return true;
                   })
                   .map(video => (
                 <div
                   key={video.id}
-                  onClick={() => setSelectedVideo(video)}
+                  onClick={() => {
+                    if (isBulkMode) {
+                      toggleSelectVideo(video.id);
+                      return;
+                    }
+
+                    setSelectedVideo(video);
+
+                    setWatchedVideos(prev => {
+                      const updated = new Set(prev);
+                      updated.add(video.id);
+
+                      localStorage.setItem('watched_videos', JSON.stringify([...updated]));
+                      return updated;
+                    });
+
+                    setLastWatched(video.id);
+                    localStorage.setItem('last_video', video.id);
+                  }}
                   className={`
                     cursor-pointer group
                     ${viewMode === 'list' ? 'flex gap-4 items-center mb-4' : ''}
@@ -814,16 +1010,48 @@ function Home() {
                     relative
                     ${viewMode === 'list' ? 'w-40 flex-shrink-0 aspect-auto rounded' : 'aspect-video overflow-hidden rounded bg-gray-900'}
                   `}>
-                    <div className="absolute bottom-2 right-2">
-                      {videoStatus[video.id] === 'checking' && (
-                        <Badge className="bg-yellow-600 text-white text-xs">CHECK</Badge>
-                      )}
-                      {videoStatus[video.id] === 'ok' && (
-                        <Badge className="bg-green-600 text-white text-xs">OK</Badge>
-                      )}
-                      {videoStatus[video.id] === 'broken' && (
-                        <Badge className="bg-red-600 text-white text-xs">BROKEN</Badge>
-                      )}
+                    {isBulkMode && (
+                      <div className="absolute top-2 right-2 z-20">
+                        <input
+                          type="checkbox"
+                          checked={selectedVideos.has(video.id)}
+                          onChange={() => toggleSelectVideo(video.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 accent-white"
+                        />
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end">
+                      
+                      {/* LEFT: Watch History */}
+                      <div className="flex flex-col gap-1">
+                        {lastWatched === video.id && (
+                          <Badge className="
+                              bg-black/60 text-white rounded
+                              text-[10px] px-0.5 py-0
+                              sm:text-xs sm:px-1 sm:py-0.5">Last</Badge>
+                        )}
+                        {watchedVideos.has(video.id) && lastWatched !== video.id && (
+                          <Badge className="
+                              bg-black/60 text-white rounded
+                              text-[10px] px-0.5 py-0
+                              sm:text-xs sm:px-1 sm:py-0.5">Watched</Badge>
+                        )}
+                      </div>
+
+                      {/* RIGHT: Status Link */}
+                      <div className="flex flex-col gap-1 items-end">
+                        {videoStatus[video.id] === 'checking' && (
+                          <Badge className="bg-yellow-600 text-white px-0.5 py-0 sm:text-xs sm:px-1 sm:py-0.5">Check</Badge>
+                        )}
+                        {videoStatus[video.id] === 'ok' && (
+                          <Badge className="bg-green-600 text-white px-0.5 py-0 sm:text-xs sm:px-1 sm:py-0.5">Ok</Badge>
+                        )}
+                        {videoStatus[video.id] === 'broken' && (
+                          <Badge className="bg-red-600 text-white px-0.5 py-0 sm:text-xs sm:px-1 sm:py-0.5">Broken</Badge>
+                        )}
+                      </div>
+
                     </div>
                     <img
                       src={video.thumbnailLink}
@@ -970,6 +1198,17 @@ function Home() {
                 width: isMobile ? '100vw' : `${videoWidth}px`,
               }}
             >
+              {isBulkMode && (
+                <div className="absolute top-2 right-2 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedVideos.has(selectedVideo.id)}
+                    onChange={() => toggleSelectVideo(selectedVideo.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4"
+                  />
+                </div>
+              )}
               <div className="relative w-full" style={{ paddingTop: `${100 / (16 / 9)}%` }}>
                 {selectedVideo.embedLink.endsWith('.mp4') ? (
                   <video
@@ -1581,16 +1820,19 @@ function Home() {
               )}
 
                 <Select
-                  value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as 'all' | 'ok' | 'broken')}
+                  value={watchFilter}
+                  onValueChange={(v) =>
+                    setWatchFilter(v as 'all' | 'watched' | 'unwatched' | 'last')
+                  }
                 >
                   <SelectTrigger className="w-1/2 text-white text-center bg-black">
-                    <SelectValue placeholder="Video Status" />
+                    <SelectValue placeholder="Watch Status" />
                   </SelectTrigger>
                   <SelectContent className="bg-black text-white">
-                    <SelectItem value="all">Check All</SelectItem>
-                    <SelectItem value="ok">Check Working</SelectItem>
-                    <SelectItem value="broken">Check Broken</SelectItem>
+                    <SelectItem value="all">All Watch</SelectItem>
+                    <SelectItem value="watched">Watched</SelectItem>
+                    <SelectItem value="unwatched">Unwatched</SelectItem>
+                    <SelectItem value="last">Last Watched</SelectItem>
                   </SelectContent>
                 </Select>
               {!isAuthenticated ? (
@@ -1613,6 +1855,153 @@ function Home() {
                   <LogOut className="w-4 h-4" />
                 </Button>
               )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+        <DialogContent className="bg-black text-white border border-gray-800">
+
+          <DialogHeader>
+            <DialogTitle>Edit Labels (Bulk)</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+
+            {/* INPUT LABEL BARU */}
+            <div className="flex gap-2">
+              <Input
+                value={bulkNewLabel}
+                onChange={(e) => setBulkNewLabel(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddBulkLabel()}
+                placeholder="Add label"
+                className="bg-black text-white border-gray-700"
+              />
+              <Button
+                onClick={handleAddBulkLabel}
+                className="bg-white text-black"
+              >
+                +
+              </Button>
+            </div>
+
+            {/* SELECTED LABELS */}
+            <div className="flex flex-wrap gap-2">
+              {bulkLabels.map(label => (
+                <Badge key={label} className="bg-white text-black">
+                  {label}
+                  <button
+                    onClick={() =>
+                      setBulkLabels(prev => prev.filter(l => l !== label))
+                    }
+                    className="ml-1 hover:text-red-500"
+                  >
+                    ✕
+                  </button>
+                </Badge>
+              ))}
+            </div>
+
+            {/* EXISTING LABELS */}
+            <div>
+              <p className="text-sm text-gray-400 mb-2">
+                Existing labels
+              </p>
+
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                {filteredBulkLabels.map(label => {
+                  const selected = bulkLabels.includes(label);
+
+                  return (
+                    <Badge
+                      key={label}
+                      onClick={() => toggleBulkLabel(label)}
+                      className={`cursor-pointer ${
+                        selected
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-white text-black hover:bg-gray-500'
+                      }`}
+                    >
+                      {label}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ACTION */}
+            <div className="flex gap-2 justify-end">
+              <Button
+                onClick={() => setIsBulkEditDialogOpen(false)}
+                className="bg-white text-black hover:bg-gray-500"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                onClick={handleBulkEditLabels}
+                className="bg-white text-black hover:bg-gray-500"
+              >
+                Save
+              </Button>
+            </div>
+
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <DialogContent className="bg-black text-white border border-gray-800">
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Delete</DialogTitle>
+          </DialogHeader>
+
+          <p className="text-gray-300">
+            Are you sure you want to delete{' '}
+            <span className="font-bold">{selectedVideos.size}</span> videos?
+            This action cannot be undone.
+          </p>
+
+          <div className="flex gap-2 justify-end pt-4">
+            <Button
+              className="bg-white text-black hover:bg-gray-500"
+              onClick={() => setIsBulkDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              className="bg-white text-black hover:bg-gray-500"
+              onClick={async () => {
+                const saved = getCookie('admin_pass');
+
+                if (!saved) {
+                  setActionType('delete');
+                  setIsPasswordDialogOpen(true);
+                  return;
+                }
+
+                try {
+                  await Promise.all(
+                    Array.from(selectedVideos).map(id =>
+                      fetch(`/api/videos/${id}`, {
+                        method: 'DELETE',
+                        headers: { authorization: saved },
+                      })
+                    )
+                  );
+
+                  showToast('Bulk delete success', 'success');
+                  setSelectedVideos(new Set());
+                  setIsBulkDeleteDialogOpen(false);
+
+                  fetchMeta();
+                  fetchVideos(1, selectedLabel);
+                } catch {
+                  showToast('Bulk delete failed', 'error');
+                }
+              }}
+            >
+              Delete
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

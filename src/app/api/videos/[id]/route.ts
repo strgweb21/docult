@@ -22,35 +22,44 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, embedLink, thumbnailLink, downloadLink, labels } = body;
 
-    if (!title || !embedLink || !thumbnailLink) {
+    // 🔥 ambil data lama
+    const existing = await db.video.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
       return NextResponse.json(
-        { error: 'Title, embed link, and thumbnail link are required' },
-        { status: 400 }
+        { error: 'Video not found' },
+        { status: 404 }
       );
     }
 
-    const video = await db.video.update({
+    // 🔥 merge data (INI KUNCI UTAMA)
+    const updated = await db.video.update({
       where: { id },
       data: {
-        title,
-        embedLink,
-        thumbnailLink,
-        downloadLink: downloadLink || '',
+        title: body.title ?? existing.title,
+        embedLink: body.embedLink ?? existing.embedLink,
+        thumbnailLink: body.thumbnailLink ?? existing.thumbnailLink,
+        downloadLink:
+          body.downloadLink !== undefined
+            ? body.downloadLink
+            : existing.downloadLink,
+
         labels:
-          Array.isArray(labels)
-            ? labels.join(",")
-            : typeof labels === "string"
-            ? labels
-            : "",
+          body.labels !== undefined
+            ? Array.isArray(body.labels)
+              ? body.labels.join(",")
+              : body.labels
+            : existing.labels,
       },
     });
 
     return NextResponse.json({
-      ...video,
-      labels: video.labels
-        ? video.labels.split(",").map(l => l.trim())
+      ...updated,
+      labels: updated.labels
+        ? updated.labels.split(",").map(l => l.trim())
         : [],
     });
   } catch (error) {
