@@ -1818,6 +1818,21 @@ function Home() {
                   </SelectContent>
                 </Select>
               )}
+              
+
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as 'all' | 'ok' | 'broken')}
+                >
+                  <SelectTrigger className="w-1/2 text-white text-center bg-black">
+                    <SelectValue placeholder="Video Status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black text-white">
+                    <SelectItem value="all">Check All</SelectItem>
+                    <SelectItem value="ok">Check Working</SelectItem>
+                    <SelectItem value="broken">Check Broken</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <Select
                   value={watchFilter}
@@ -1825,7 +1840,7 @@ function Home() {
                     setWatchFilter(v as 'all' | 'watched' | 'unwatched' | 'last')
                   }
                 >
-                  <SelectTrigger className="w-1/2 text-white text-center bg-black">
+              <SelectTrigger className="w-1/2 text-white text-center bg-black">
                     <SelectValue placeholder="Watch Status" />
                   </SelectTrigger>
                   <SelectContent className="bg-black text-white">
@@ -1834,7 +1849,7 @@ function Home() {
                     <SelectItem value="unwatched">Unwatched</SelectItem>
                     <SelectItem value="last">Last Watched</SelectItem>
                   </SelectContent>
-                </Select>
+              </Select>
               {!isAuthenticated ? (
                 <Button
                   onClick={() => setIsPasswordDialogOpen(true)}
